@@ -8,15 +8,43 @@ using HarmonyLib;
 namespace Ember
 {
     /// <summary>
-    /// Ember. One sentence saying what the mod does, then a paragraph saying why it is
-    /// worth having - the design argument, not the feature list. That paragraph is the thing
-    /// future-you reads first.
+    /// Ember. A fire may lose one fuel to an absence, however long the absence was.
     ///
-    /// Say here whether the mod is client-side, and say it in terms of where the work
-    /// happens rather than by habit. "Client-side" means every effect is computed by the
-    /// owning client off state it already has. The moment a decision reads another player's
-    /// progress, writes a shared ZDO, or registers a prefab, it is not client-side any more
-    /// and Requirement.Everyone below is load-bearing.
+    /// The complaint this comes from is a day away and a base of cold fires, with a bill in
+    /// wood and resin to light them again - and nobody having been anywhere near them. The
+    /// reason is not that fires burn too fast. It is what a fireplace is charged for.
+    /// UpdateFireplace bills against the world clock, so the first update after your base
+    /// loads back in pays for the entire gap since the last one, and whether a person was
+    /// standing there is not part of the sum. A base of thirty torches is thirty of those
+    /// bills landing in the same second you walk in.
+    ///
+    /// The obvious fix is to make fuel last longer, and it is the wrong one twice over. It
+    /// makes a fire cheaper while you are stood at it cooking, which was never the complaint,
+    /// and it only moves the deadline - a longer trip next time arrives at the same cold base.
+    /// This caps the bill instead, so what an absence costs stops depending on how long it
+    /// was, and what a fire costs while you are using it does not change at all.
+    ///
+    /// It is deliberately not an auto-feeder and not an infinite fire. One unit off the top is
+    /// a real price, a fire left nearly empty still goes out, and every second you spend in
+    /// front of one is charged exactly what vanilla charges. Bank your fires before you log
+    /// off and they will be lit when you get back; leave them guttering and they will not.
+    ///
+    /// Client-side is the wrong word for it, and the reason is worth writing down. Every
+    /// decision here is made off state the machine already has, with nothing new on the wire -
+    /// but the machine making it is whichever client owns the fireplace's ZDO, and the result
+    /// is written into s_fuel, which is shared world state rather than something rendered
+    /// locally. Ownership is not stable either: ZDOMan.ReleaseNearbyZDOS reassigns it every two
+    /// seconds to whichever peer's active area covers the fire. So one person walking up to
+    /// your base without this plugin takes the fire over and pays its absence off the vanilla
+    /// way, and the cap is gone for everybody, silently.
+    ///
+    /// "Put it on the host and let the host decide" is not available as an alternative. A
+    /// dedicated server never calls ZNet.SetReferencePosition - every caller is player code -
+    /// so its reference position stays at the world origin and it is never a candidate owner
+    /// for a player-built fire. There is no host simulation to put this in. Requirement.Everyone
+    /// is therefore the honest answer rather than the cautious one: HostOnly's only power is to
+    /// tolerate the absence of the plugin on the far end, and the far end is where all the
+    /// arithmetic happens.
     ///
     /// There is deliberately no BepInProcess attribute. A dedicated server runs
     /// valheim_server.exe, and Core's gate only refuses on the server side of RPC_PeerInfo -
@@ -42,8 +70,8 @@ namespace Ember
 
         /// <summary>
         /// Whether Core answered at load. Worth keeping even when nothing reads it yet: the
-        /// difference between gated and ungated is invisible to a player otherwise, and this
-        /// is what a warning on spawn would be driven by.
+        /// difference between gated and ungated is invisible to a player otherwise, and this is
+        /// what a warning on spawn would be driven by.
         /// </summary>
         internal static bool CorePresent;
 
@@ -53,19 +81,21 @@ namespace Ember
         {
             Log = Logger;
 
-            // Config first. Registering absorbs every entry the mod has bound, so anything
-            // bound after this line is carried only because Core re-absorbs at manifest
-            // time - and depending on the order of two lines in an Awake is not a thing
-            // worth relying on.
+            // Config first. Registering absorbs every entry the mod has bound, so anything bound
+            // after this line is carried only because Core re-absorbs at manifest time - and
+            // depending on the order of two lines in an Awake is not a thing worth relying on.
             EmberConfig.Bind(Config);
 
             TryRegisterWithCore();
 
-            // PatchAll over a named type, never the whole assembly. A bare PatchAll() walks
-            // every type in the DLL, so a half-written patch class in another file goes live
-            // the moment it compiles.
+            // PatchAll over a named type, never the whole assembly - a bare PatchAll() walks
+            // every type in the DLL, so a half-written patch class goes live the moment it
+            // compiles. It goes through EmberPatches.Apply rather than being called here
+            // because the one method this mod patches is private and matched by name, and the
+            // whole mod is that one patch: a rename in a game update should cost the feature
+            // and one clear line in the log, not an exception thrown out of Awake.
             _harmony = new Harmony(PluginGuid);
-            _harmony.PatchAll(typeof(EmberPatches));
+            EmberPatches.Apply(_harmony);
 
             // The startup line every mod in the suite writes. It is how a log answers "which
             // build of what is actually loaded" without anyone guessing.
@@ -75,12 +105,13 @@ namespace Ember
         /// <summary>
         /// Joins Core's version gate when Core is installed, and does nothing when it is not.
         ///
-        /// Name here exactly what standing alone costs, because it is usually not the mod.
-        /// For most of these it is the *enforcement*: without Core nothing refuses a client
-        /// that lacks the plugin, so the rule becomes an agreement between players rather
-        /// than a property of the server. That is a real loss and a legitimate choice, and
-        /// it is the server owner's to make - which is why this logs rather than refusing
-        /// to run.
+        /// Standing alone costs the enforcement, and here that is most of the point. Without
+        /// Core nothing refuses a client that lacks this plugin, and one such client wandering
+        /// through somebody's base is enough to charge the full absence for everyone - so the
+        /// cap becomes an agreement between players rather than a property of the world, and
+        /// the way it fails is a base of cold fires with every log looking reasonable. That is
+        /// a real loss and it is the server owner's to accept, which is why this logs rather
+        /// than refusing to run.
         /// </summary>
         private void TryRegisterWithCore()
         {
@@ -96,41 +127,40 @@ namespace Ember
         }
 
         /// <summary>
-        /// Kept separate and never inlined on purpose. The JIT resolves the assemblies a
-        /// method needs when it first compiles that method, so a Suite call sitting directly
-        /// in Awake would drag Ezomic.Core in before the check above could prevent it - and
-        /// the missing-assembly exception would land during plugin load, which is the exact
-        /// failure this arrangement exists to avoid. Isolating it means the type is only
-        /// ever resolved on a machine that has Core.
+        /// Kept separate and never inlined on purpose. The JIT resolves the assemblies a method
+        /// needs when it first compiles that method, so a Suite call sitting directly in Awake
+        /// would drag Ezomic.Core in before the check above could prevent it - and the
+        /// missing-assembly exception would land during plugin load, which is the exact failure
+        /// this arrangement exists to avoid. Isolating it means the type is only ever resolved
+        /// on a machine that has Core.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void RegisterWithCore()
         {
-            // Requirement.Everyone or Requirement.HostOnly, and the choice is not a matter of
-            // taste. Everyone for anything that registers a prefab or changes item data,
-            // whether it looks networked or not: a client that cannot resolve a prefab hash
-            // does not fail loudly, ZNetScene discards the ZDO as junk and the thing a player
-            // built is simply gone. HostOnly only when a client without the mod is genuinely
-            // unaffected.
+            // Everyone, not HostOnly, and it is not a preference. Skaft's HostOnly test has
+            // three clauses - registers no prefab, invents no ZDO key, changes no item data -
+            // and this mod passes the first two and fails the third: it writes ZDOVars.s_fuel
+            // at a rate the far end does not agree with. HostOnly would let in exactly the
+            // client that undoes the rule, and there is no host simulation to fall back on.
             Suite.Register(PluginGuid, PluginName, PluginVersion, Config, Requirement.Everyone);
 
-            // Registering already absorbs the whole config file, so this is a formality now.
-            // It is still worth writing: naming an entry here is saying out loud that the
-            // host decides it. Keybinds are excluded by Core itself - a host taking away
-            // someone's keys for the evening is the kind of sync that gets a mod uninstalled.
-            Suite.Sync(EmberConfig.Enabled);
+            // Registering already absorbs the whole config file, so naming these is a
+            // formality. It is worth writing anyway: this is the mod's entire balance plus its
+            // kill switch, and saying out loud that the host owns both is the point of putting
+            // Ember on a server at all. A guest running a cap of 50 would be playing with
+            // fires that never go out on somebody else's world.
+            Suite.Sync(EmberConfig.Enabled, EmberConfig.MaxFuelPerAbsence);
 
-            // If the mod reads a data file that decides what it does, hash it too. The gate
-            // catches two ends on different builds; it cannot catch two ends running the
-            // same build over different text unless it is told.
-            //
-            //     Suite.Data(File.ReadAllText(path));
+            // Opting the diagnostic back out. A host reaching across to switch on someone's
+            // logging for the evening is not a thing anybody asked for, and a log line cannot
+            // desync a world.
+            Suite.Local(EmberConfig.Verbose);
         }
 
         private void OnDestroy()
         {
-            // UnpatchSelf, never UnpatchAll(). The argumentless one unpatches every mod in
-            // the process, not just this one.
+            // UnpatchSelf, never UnpatchAll(). The argumentless one unpatches every mod in the
+            // process, not just this one.
             if (_harmony != null) _harmony.UnpatchSelf();
         }
     }

@@ -3,63 +3,173 @@ using HarmonyLib;
 namespace Ember
 {
     /// <summary>
-    /// The mod's Harmony patches. One class named in the plugin's PatchAll, so nothing goes
-    /// live by being written.
+    /// One postfix, on one private method, changing one number.
     ///
-    /// Two rules that this file exists to hold in view.
+    /// The whole mechanism is worth having in front of you, because it is not where anybody
+    /// looks first. A fireplace does not burn down in the background. While its zone is
+    /// loaded, <c>Fireplace.UpdateFireplace</c> runs every two seconds off an InvokeRepeating
+    /// started in Awake, and each run asks <c>GetTimeSinceLastUpdate()</c> how long it has
+    /// been - which diffs <c>ZNet.instance.GetTime()</c> against a <c>s_lastTime</c> stamp on
+    /// the ZDO, re-stamps it to now, and returns the gap in seconds. UpdateFireplace then
+    /// subtracts <c>gap / m_secPerFuel</c> fuel.
     ///
-    /// Ride vanilla systems rather than hand-rolling them. The suite's mods do their work by
-    /// reading the game's own tables - Smelter.m_conversion, the Hammer's piece table - and
-    /// by going through Player.PlacePiece so validity stays the game's problem. Keeping new
-    /// features on that seam is what makes them survive a game update; a custom subclass or
-    /// a patch on movement trades that away.
+    /// When the zone is unloaded nothing runs and nothing re-stamps, so the gap keeps growing
+    /// on the ZDO. The first update after the zone comes back therefore bills the entire
+    /// absence in one go. Nobody being there is not part of the sum at any point.
     ///
-    /// Never guess an API. Read it, with
-    /// <c>ilspycmd -t &lt;Type&gt; -r "&lt;ManagedDir&gt;" "&lt;ManagedDir&gt;\assembly_valheim.dll"</c>,
-    /// or take the numbers off a devkit rip. A wrong method name is a Harmony patch that
-    /// throws once at load and then quietly never runs.
+    /// The clock behind it is the world's, not the wall's. <c>ZNet.UpdateNetTime</c> only
+    /// advances <c>m_netTime</c> on a server while <c>GetNrOfPlayers() > 0</c>, and it is
+    /// saved into the world file, so an empty server is frozen and a singleplayer world
+    /// resumes exactly where it stopped. What actually drains your base is every hour somebody
+    /// else was online somewhere else - or every hour you spent across the map, in
+    /// singleplayer too.
+    ///
+    /// So the fix is not a longer-burning fire. It is refusing to charge for the part of the
+    /// gap nobody was present for, which is a cap on a single bill and nothing else.
+    ///
+    /// One drain this deliberately does not cover. <c>Fire.Dot</c>, the spreading-fire
+    /// component, calls <c>Fireplace.AddFuel(-m_fuelBurnAmount)</c> on its own one second
+    /// invoke and reaches the ZDO through RPC_AddFuelAmount, so nothing here sees it. It needs
+    /// no cover: that loop only runs while the object is loaded, which is the case this mod
+    /// has nothing to say about. No player-built fire carries the component anyway - the torch
+    /// prefabs ripped from this install are Piece, ZNetView, WearNTear, Fireplace and nothing
+    /// else.
     /// </summary>
     internal static class EmberPatches
     {
-        /// <summary>
-        /// A patch that does nothing, kept so the wiring is proved rather than assumed. It
-        /// is the first thing to check when a mod loads and appears to do nothing at all: if
-        /// this line is absent from the log, the problem is the patch not applying, not the
-        /// logic behind it.
-        /// </summary>
-        [HarmonyPostfix]
-        [HarmonyPatch(typeof(Player), nameof(Player.OnSpawned))]
-        private static void OnSpawned(Player __instance)
-        {
-            // Every player object in the scene runs this, not only yours. Anything meant for
-            // the person at the keyboard needs this line.
-            if (__instance != Player.m_localPlayer) return;
-            if (!EmberConfig.Enabled.Value || !EmberConfig.Verbose.Value) return;
+        /// <summary>The private method this mod exists to adjust.</summary>
+        private const string Target = "GetTimeSinceLastUpdate";
 
-            EmberPlugin.Log.LogInfo("Player spawned - patches are live.");
+        /// <summary>
+        /// Patched on its own, behind a check and a catch, because the target is a private
+        /// method matched by a string. That is the kind of name a game update renames without
+        /// anyone noticing, and the difference matters: an unguarded PatchAll throws inside
+        /// Awake, which leaves a stack trace in the log where the reason should be. This way a
+        /// rename costs the feature and says so in one line, and fires go back to burning
+        /// exactly as vanilla burns them.
+        ///
+        /// The name is checked before patching rather than only caught afterwards, so the
+        /// message can name what is missing instead of quoting Harmony at somebody. Harmony
+        /// resolves a target with DeclaredMethod, which is DeclaredOnly, so the lookup could
+        /// not drift onto one of the three other classes carrying a private method of the same
+        /// name - but do not copy this patch onto them. Beehive and SapCollector return float
+        /// where Fireplace and ResourceRoot return double, and Harmony checks the declared
+        /// __result type against the real return type at patch time.
+        ///
+        /// Worth knowing about the blast radius, because it is wider than it looks: Harmony
+        /// resolves every target in a class before applying any of them, so one unresolvable
+        /// name costs the whole class rather than the one patch. That is an argument for
+        /// keeping a name-matched target in a class of its own, which here is the entire mod.
+        /// </summary>
+        internal static void Apply(Harmony harmony)
+        {
+            try
+            {
+                if (AccessTools.Method(typeof(Fireplace), Target) == null)
+                {
+                    EmberPlugin.Log.LogError(
+                        "Ember is doing nothing: Fireplace." + Target + " is not in this build "
+                        + "of the game, so there is nothing to cap and fires burn the vanilla "
+                        + "way. That method is private and matched by name, so a game update is "
+                        + "the likely reason.");
+                    return;
+                }
+
+                harmony.PatchAll(typeof(EmberPatches));
+            }
+            catch (System.Exception e)
+            {
+                // Error rather than warning, and it says the mod is inert rather than naming a
+                // feature. There is only the one patch, so a failure here is the whole mod, and
+                // the next line in the log is the ordinary "- ready." that every mod in the
+                // suite writes - which means "loaded", not "working".
+                EmberPlugin.Log.LogError(
+                    "Ember is doing nothing: could not patch Fireplace." + Target
+                    + ", so fires burn the vanilla way. " + e.Message);
+            }
         }
 
-        // Traps worth having in front of you while writing the real ones. All of these were
-        // paid for once already:
-        //
-        //   Character.OnDeath runs on the OWNING CLIENT ONLY. Its own !IsOwner() early
-        //   return is dead code, so the block above it looks like it runs everywhere and
-        //   does not. Anything per-player at a kill has to be done by the owner for
-        //   everybody, e.g. through Player.GetPlayersInRange.
-        //
-        //   SEMan.Internal_AddStatusEffect refreshes an already-running effect in place and
-        //   returns without reaching the public AddStatusEffect overload. Patching only the
-        //   public one misses every refresh.
-        //
-        //   Player.ConsumeItem removes the item whatever EatFood returned. Refuse food in
-        //   CanConsumeItem, which is the gate that path respects; refusing later destroys it.
-        //
-        //   The first ObjectDB.Awake of a session fires against a stub with no items. Gate
-        //   anything that reads the item database on m_items.Count > 0, and hook
-        //   ObjectDB.CopyOtherDB as well - that is the path a client takes on joining a
-        //   server.
-        //
-        //   Writing to a container or ZDO you do not own is silently discarded. Call
-        //   nview.ClaimOwnership() first, which is what vanilla's Take All does.
+        /// <summary>
+        /// Vanilla's own update interval, from the <c>InvokeRepeating("UpdateFireplace", 0f,
+        /// 2f)</c> in <c>Fireplace.Awake</c>.
+        /// </summary>
+        private const double LiveInterval = 2.0;
+
+        /// <summary>
+        /// Above this many seconds, an update is a catch-up rather than a live tick.
+        ///
+        /// The cap has to know the difference, and the honest test is the one vanilla already
+        /// answers: a gap much longer than the update interval means updates were not running,
+        /// which only happens when the zone was unloaded or the game was shut. Three intervals
+        /// leaves room for a frame hitch or a loading stall to be counted normally.
+        ///
+        /// This only ever decides anything when the cap itself is smaller than six seconds -
+        /// at MaxFuelPerAbsence 1 the cap is hours - and that is exactly the case it is here
+        /// for. Without it, setting MaxFuelPerAbsence to 0 would clamp every two-second tick
+        /// to zero as well, and "an absence is free" would quietly mean "fires never burn at
+        /// all", which is a different mod and not the one the setting describes.
+        /// </summary>
+        private const double CatchUpAfter = LiveInterval * 3.0;
+
+        /// <summary>
+        /// Cap what one update may charge for.
+        ///
+        /// A postfix on the accessor rather than on UpdateFireplace, because this is the one
+        /// place the number exists on its own. UpdateFireplace reads the fuel, decides whether
+        /// the fire is burning, subtracts, clamps at zero, writes the ZDO and then repaints
+        /// the whole visual state; a patch there would have to take all of that on to change
+        /// the one term. Here there is a single double and no other consequence - and vanilla
+        /// has already re-stamped s_lastTime to now before this runs, so the seconds trimmed
+        /// off are discarded rather than deferred to the next update.
+        ///
+        /// It also means the mod cannot alter what an absence does to anything except fuel.
+        /// GetTimeSinceLastUpdate has exactly one caller and this is its only use.
+        /// </summary>
+        [HarmonyPostfix]
+        [HarmonyPatch(typeof(Fireplace), "GetTimeSinceLastUpdate")]
+        private static void GetTimeSinceLastUpdate(Fireplace __instance, ref double __result)
+        {
+            // Unity overloads ==, so a destroyed component compares equal to null and the
+            // null-propagating operators would walk straight past that. Plain == only.
+            if (__instance == null) return;
+
+            // A live tick is never touched, whatever the cap says. This is the line that keeps
+            // the mod invisible while you are standing in front of the fire.
+            if (__result <= CatchUpAfter) return;
+
+            double cap = EmberConfig.CapSeconds(__instance.m_secPerFuel);
+            if (cap < 0.0) return;
+            if (__result <= cap) return;
+
+            double charged = __result;
+            __result = cap;
+
+            if (!EmberConfig.Verbose.Value) return;
+
+            // Named by prefab rather than by m_name: m_name is a localisation key like
+            // $piece_sconce, which is not what somebody grepping a log will be looking for.
+            string what = Utils.GetPrefabName(__instance.gameObject.name);
+
+            EmberPlugin.Log.LogInfo(
+                what + " came back after " + Span(charged) + " of world time. Charged "
+                + Span(cap) + " of it, " + Fuel(cap, __instance.m_secPerFuel)
+                + " fuel, instead of " + Fuel(charged, __instance.m_secPerFuel) + ".");
+        }
+
+        /// <summary>A span of seconds, in whichever unit reads without arithmetic.</summary>
+        private static string Span(double seconds)
+        {
+            if (seconds < 90.0) return seconds.ToString("0") + "s";
+            if (seconds < 5400.0) return (seconds / 60.0).ToString("0.0") + "m";
+
+            return (seconds / 3600.0).ToString("0.0") + "h";
+        }
+
+        private static string Fuel(double seconds, float secondsPerFuel)
+        {
+            if (secondsPerFuel <= 0f) return "0";
+
+            return (seconds / secondsPerFuel).ToString("0.00");
+        }
     }
 }
