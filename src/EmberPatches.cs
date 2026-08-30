@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 
 namespace Ember
@@ -53,8 +54,8 @@ namespace Ember
         /// resolves a target with DeclaredMethod, which is DeclaredOnly, so the lookup could
         /// not drift onto one of the three other classes carrying a private method of the same
         /// name - but do not copy this patch onto them. Beehive and SapCollector return float
-        /// where Fireplace and ResourceRoot return double, and Harmony checks the declared
-        /// __result type against the real return type at patch time.
+        /// where Fireplace and ResourceRoot return double, and ResourceRoot's signature is
+        /// identical to this one, so a mistyped declaring type would patch it silently.
         ///
         /// Worth knowing about the blast radius, because it is wider than it looks: Harmony
         /// resolves every target in a class before applying any of them, so one unresolvable
@@ -90,29 +91,47 @@ namespace Ember
         }
 
         /// <summary>
+        /// Fireplaces this machine has already billed at least once.
+        ///
+        /// This is the whole definition of "an absence", and getting it from the component's
+        /// own history rather than from the size of the gap is the only version that holds up.
+        /// A fireplace is created by ZNetScene when its zone loads and destroyed when the zone
+        /// goes, so the first time we bill an instance is exactly the update that pays for
+        /// however long the thing was not running. Every later call is a live two-second tick.
+        ///
+        /// The obvious alternative - treat any gap longer than a few seconds as an absence -
+        /// is wrong in a way that is worth writing down, because it reads as correct. Sleeping
+        /// through the night runs EnvMan.UpdateTimeSkip, which pushes the world clock forward
+        /// at around fifty times normal for a dozen real seconds, and the console's skiptime
+        /// jumps it instantly. Both of those arrive here as a huge gap with the zone loaded and
+        /// the fire ticking the entire time. You were standing there. A size test forgives
+        /// them; asking whether the component has been running does not.
+        ///
+        /// A ConditionalWeakTable rather than a set of instance ids: it holds the key weakly,
+        /// so an entry disappears when the fireplace is collected, and Unity recycles instance
+        /// ids. There is nothing to clear and nothing to leak.
+        /// </summary>
+        private static readonly ConditionalWeakTable<Fireplace, object> _billed =
+            new ConditionalWeakTable<Fireplace, object>();
+
+        /// <summary>
         /// Vanilla's own update interval, from the <c>InvokeRepeating("UpdateFireplace", 0f,
         /// 2f)</c> in <c>Fireplace.Awake</c>.
         /// </summary>
         private const double LiveInterval = 2.0;
 
         /// <summary>
-        /// Above this many seconds, an update is a catch-up rather than a live tick.
+        /// A first bill smaller than this is not worth calling an absence.
         ///
-        /// The cap has to know the difference, and the honest test is the one vanilla already
-        /// answers: a gap much longer than the update interval means updates were not running,
-        /// which only happens when the zone was unloaded or the game was shut. Three intervals
-        /// leaves room for a frame hitch or a loading stall to be counted normally.
-        ///
-        /// This only ever decides anything when the cap itself is smaller than six seconds -
-        /// at MaxFuelPerAbsence 1 the cap is hours - and that is exactly the case it is here
-        /// for. Without it, setting MaxFuelPerAbsence to 0 would clamp every two-second tick
-        /// to zero as well, and "an absence is free" would quietly mean "fires never burn at
-        /// all", which is a different mod and not the one the setting describes.
+        /// Unlike the gap test this replaced, nothing about the cap depends on this number - a
+        /// first bill is recognised by the instance never having been billed, not by its size.
+        /// This only keeps a fire you just placed, or one whose zone blinked, out of the
+        /// Verbose log, where a line reading "away 0s" is noise.
         /// </summary>
-        private const double CatchUpAfter = LiveInterval * 3.0;
+        private const double WorthReporting = LiveInterval * 3.0;
 
         /// <summary>
-        /// Cap what one update may charge for.
+        /// Cap what the first update after a fireplace comes back may charge for.
         ///
         /// A postfix on the accessor rather than on UpdateFireplace, because this is the one
         /// place the number exists on its own. UpdateFireplace reads the fuel, decides whether
@@ -120,10 +139,13 @@ namespace Ember
         /// the whole visual state; a patch there would have to take all of that on to change
         /// the one term. Here there is a single double and no other consequence - and vanilla
         /// has already re-stamped s_lastTime to now before this runs, so the seconds trimmed
-        /// off are discarded rather than deferred to the next update.
+        /// off are discarded rather than deferred to the next update. That is what a cap wants,
+        /// but it is a property of where the patch sits rather than a choice: a postfix here
+        /// could not bank the remainder even if that were wanted.
         ///
-        /// It also means the mod cannot alter what an absence does to anything except fuel.
-        /// GetTimeSinceLastUpdate has exactly one caller and this is its only use.
+        /// The clamp can only ever reduce, and every call advances the stamp, so successive
+        /// bills partition real elapsed time rather than repeating it. Ownership moving between
+        /// clients cannot make a fire burn faster than vanilla.
         /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch(typeof(Fireplace), "GetTimeSinceLastUpdate")]
@@ -133,19 +155,24 @@ namespace Ember
             // null-propagating operators would walk straight past that. Plain == only.
             if (__instance == null) return;
 
-            // A live tick is never touched, whatever the cap says. This is the line that keeps
-            // the mod invisible while you are standing in front of the fire, and it is also
-            // where all but a handful of calls leave: this runs every two seconds for every
-            // fire the machine owns, and everything below is reached only on a catch-up.
-            if (__result <= CatchUpAfter) return;
+            // Seen before means the component has been running, so this is a live tick and is
+            // never touched however large it is. This is also where all but one call per
+            // fireplace per zone load leaves, which matters: the postfix runs every two seconds
+            // for every fire this machine owns.
+            object marker;
+            if (_billed.TryGetValue(__instance, out marker)) return;
+
+            _billed.Add(__instance, null);
 
             double charged = __result;
             double cap = EmberConfig.CapSeconds(__instance.m_secPerFuel);
-            bool capped = cap >= 0.0 && charged > cap;
 
-            if (capped) __result = cap;
+            // cap is negative when the mod is off, and NaN fails every comparison it is in, so
+            // a config file hand-edited to NaN or a nonsense rate leaves vanilla alone rather
+            // than writing a NaN into the fuel the world saves.
+            if (cap >= 0.0 && charged > cap) __result = cap;
 
-            if (EmberConfig.Verbose.Value) Report(__instance, charged, __result, capped);
+            if (EmberConfig.Verbose.Value) Report(__instance, charged, __result);
         }
 
         /// <summary>
@@ -158,15 +185,27 @@ namespace Ember
         /// "the cap worked" and "nothing had burned down anyway". A line on every catch-up
         /// makes the log the instrument: walk out of the zone, wait, walk back, and either
         /// there is a line with the numbers in it or the mod is not running.
+        ///
+        /// Silent about fires that were never going to spend anything, and that is not
+        /// tidiness. GetTimeSinceLastUpdate is called above vanilla's
+        /// <c>IsBurning() &amp;&amp; !m_infiniteFuel &amp;&amp; state == 1</c> gate, so an
+        /// unlit torch, a fire someone switched off, one standing under a roof and an
+        /// infinite-fuel brazier all reach this with a large gap and nothing at stake.
+        /// Reporting those would claim a saving that never existed, which is the same class of
+        /// lie the Verbose flag exists to prevent. IsBurning covers blocked, switched off,
+        /// underwater and out of fuel in one call, so the pair below is exactly vanilla's gate.
         /// </summary>
-        private static void Report(Fireplace fire, double charged, double billed, bool capped)
+        private static void Report(Fireplace fire, double charged, double billed)
         {
+            if (charged < WorthReporting) return;
+            if (!fire.IsBurning() || fire.m_infiniteFuel) return;
+
             // Named by prefab rather than by m_name: m_name is a localisation key like
             // $piece_sconce, which is not what somebody grepping a log will be looking for.
             string what = Utils.GetPrefabName(fire.gameObject.name);
             float rate = fire.m_secPerFuel;
 
-            if (!capped)
+            if (billed >= charged)
             {
                 EmberPlugin.Log.LogInfo(
                     what + " was away " + Span(charged) + " of world time, worth "

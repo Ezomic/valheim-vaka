@@ -71,6 +71,29 @@ A live tick is never touched, whatever the cap says. Without that guard, setting
 `MaxFuelPerAbsence` to 0 would clamp every two-second tick to zero as well, and "an absence is
 free" would quietly mean "fires never burn at all".
 
+### An absence is the fire not having run, never a big number
+
+The first version decided what counted as an absence by the size of the gap: anything longer
+than three update intervals. That reads as correct and is not. Sleeping runs
+`EnvMan.UpdateTimeSkip`, which pushes the world clock forward at roughly fifty times normal
+for a dozen real seconds, and `skiptime` jumps it instantly - so both arrive as an enormous
+gap with the zone loaded and the fire ticking the whole time. A size test forgives them, which
+would have made sleeping through the night a free burn on any fire with a short enough rate,
+and it would never have shown up on a torch because a torch's cap is five and a half hours.
+
+So the test is now the component's own history. A `ConditionalWeakTable` records which
+fireplaces this machine has already billed; the first bill for an instance is the one paying
+for however long the thing was not running, and every later call is a live tick that is never
+touched however large it is. ZNetScene destroys and rebuilds a fireplace with its zone, so a
+new instance is exactly a return from an absence.
+
+It also closed a hole nobody had noticed: ownership is granted only inside a player's own 64m
+zone while objects are instantiated across 192m, so a fire 40m away across a zone line loses
+and regains its owner without ever being destroyed. Under the size test that was a fresh
+capped "absence" every crossing, and a patrol loop past your own base would have kept it lit
+for one wood a lap. Under the history test the instance was never destroyed, so it is a live
+tick and is charged in full.
+
 ### Verbose reports the catch-ups it did not cap, on purpose
 
 Fuel is drawn as `Mathf.Ceil(fuel)` out of the maximum, so anything under a whole unit is
@@ -81,6 +104,26 @@ only the capped ones would have preserved exactly that ambiguity.
 So `Verbose` writes a line on every catch-up, capped or not, and the line carries the span,
 what it was worth in fuel and what was actually charged. Walk out of a zone, wait, walk back,
 and either there is a line or the mod is not running.
+
+It stays silent about fires that were never going to spend anything, which is the other half
+of being truthful. `GetTimeSinceLastUpdate` is called above vanilla's
+`IsBurning() && !m_infiniteFuel && state == 1` gate, so an unlit torch, one somebody switched
+off, one under a roof and an infinite-fuel brazier all arrive here with a huge gap and nothing
+at stake. Reporting those would claim savings that never existed - the same kind of lie the
+flag exists to prevent.
+
+### A NaN in the config would have killed a fire permanently
+
+Reachable only from a hand-edited cfg, but the damage was to saved world data. BepInEx parses
+a float with `NumberFormatInfo.InvariantInfo`, whose `NaNSymbol` is the literal `NaN`. That
+would have multiplied through to a NaN cap, and vanilla's subtraction floors fuel at zero
+without ever testing for NaN - so the fire's stored fuel becomes NaN, is written into the
+world, fails every `> 0` test forever, and survives refuelling because `Mathf.Clamp` leaves
+NaN alone. One bad character, one dead fire, no way back without a console command.
+
+`CapSeconds` now refuses a non-finite rate or amount and hands the fire back to vanilla. The
+comparison it feeds was already NaN-safe by accident; being safe on purpose is cheaper than
+finding out which.
 
 ### What has actually been run
 
@@ -98,3 +141,19 @@ this profile.
 Not exercised at all: any fire in a running game, the cap on a real absence, the `Verbose`
 line, multiplayer of any kind, and the hearth and campfire numbers, which have not been
 ripped and are the fires most likely to be the ones actually going out.
+
+The test that would settle it is written up in the README, along with why the obvious one -
+leave it overnight, come back, look - proves nothing at all in either direction.
+
+### What this is worth, stated at the right scale
+
+Vanilla already bounds the loss: fuel floors at zero, so the most an absence of any length can
+ever cost is the fire's current fuel, and for a torch that is at most six wood. This turns
+"came back to a dark torch" into "came back one wood down". The wood was never the point - the
+lap of the base pressing E, and the warmth and Rested source being off, are what an outage
+actually costs, and that is the thing being bought.
+
+It is also narrower than its own name suggests. A solo logout was never billed at all, because
+the world clock freezes with the fire, and an empty dedicated server is frozen too. What is
+left is the two cases that are real on a shared server: other people playing while you were
+away, and your own long walk across the map.

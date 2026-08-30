@@ -55,12 +55,26 @@ people passing your base at different hours is several of those, because each of
 the zone afresh.
 
 It does not change burning. Every second you spend in front of a fire is charged exactly what
-vanilla charges, to the same decimal. While you are there this mod provably does nothing: a
-live update measures about two seconds and the cap is hours away.
+vanilla charges, to the same decimal. An absence is recognised by the fire not having been
+running, never by how much time went past, so **sleeping through the night is charged in
+full** even though it jumps the world clock forward, and so is the `skiptime` console command.
+You were standing there.
+
+It does not do anything for a short absence, and that is the cap working rather than failing.
+Nothing is trimmed until the bill passes one fuel, and for a torch one fuel is 20,000 seconds
+of populated world time. Under that, vanilla is already charging less than the cap allows.
 
 It does not touch smelters, kilns, blast furnaces, ovens or cooking stations. Those are
 different components with their own clocks on their own keys, and a smelter finishing while
-you are away is a thing players want rather than a thing to fix.
+you are away is a thing players want rather than a thing to fix. Worth knowing that a cooking
+station runs the same catch-up pattern and turns a rack of meat to charcoal over an unload -
+that is a real loss where a torch's is under half a log, and it is out of scope here on
+purpose rather than by oversight.
+
+One thing it does that is easy to miss: a fire that stays lit stays *able to spread*.
+`IsBurning` gates the ignite loop and the cinder spawner as well as the flame, so coming home
+to a lit fire in the Ashlands means coming home to one that has been able to catch its
+neighbours. Vanilla would have let it go out.
 
 ## Telling whether it is working
 
@@ -75,6 +89,30 @@ apply, which is the half that tells you the patch is live at all.
 
 The quick check is to walk far enough from a fire that its zone unloads, wait a few minutes,
 and walk back. Either there is a line with numbers in it or the mod is not running.
+
+**Leaving it overnight proves nothing**, and this is the trap worth naming. The world clock is
+saved with the world and only advances while somebody is online, so quitting and coming back
+bills close to zero whether the mod is installed or not. A test that starts with "reload the
+world" passes identically with the DLL deleted.
+
+The conclusive test needs a control arm and a compressed clock. On a throwaway character in a
+throwaway world, because `skiptime` permanently marks a character as having used cheats:
+
+1. Place a ground torch **outdoors on open flat ground**. Anything within about 1.3m above it
+   sets the cover check and the fire never burns at all, which reads as a pass in both arms.
+2. `devcommands`, then `setfuel 6`. You cannot reach a full 6 by hand - refilling refuses once
+   the rounded-up value hits the maximum, so a hand-filled torch sits at something like 5.02.
+3. Walk more than 150m away so the zone unloads. Run `skiptime 200000`. Walk back.
+4. With `Enabled = false`, the torch reads 0/6 and is dark. That is the behaviour being fixed.
+   With it true, it reads 5/6 and is still lit.
+
+Use at least three times the cap. `skiptime 20000` bills exactly one fuel either way, which
+looks like a failure and is not. Do one skip and let one tick land: several skips in a row are
+several separate absences, each legitimately capped, which drains the torch and looks like no
+cap at all.
+
+Standing next to the fire and running `skiptime` will show no difference, on purpose. That is
+not an absence, and Ember charges it in full.
 
 ## Installing
 

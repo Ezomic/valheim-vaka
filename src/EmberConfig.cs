@@ -75,10 +75,22 @@ namespace Ember
             // Vanilla's own guard in UpdateFireplace, restated because this is reached from a
             // method that does not carry it. A fire with no burn rate is one that never spends
             // fuel, and multiplying by it would give a cap of zero - which would read as "this
-            // fire may never burn" rather than "this fire does not burn anyway".
-            if (secondsPerFuel <= 0f) return -1.0;
+            // fire may never burn" rather than "this fire does not burn anyway". The rate is a
+            // public field another mod or a future prefab can set to anything, so it is checked
+            // here rather than trusted from the caller.
+            if (secondsPerFuel <= 0f || float.IsNaN(secondsPerFuel)
+                || float.IsInfinity(secondsPerFuel)) return -1.0;
 
             float fuel = MaxFuelPerAbsence.Value;
+
+            // NaN reaches this from a hand-edited cfg: BepInEx parses a float with
+            // NumberFormatInfo.InvariantInfo, whose NaNSymbol is the literal "NaN". Left alone
+            // it would multiply through to a NaN cap, and vanilla's subtraction floors fuel at
+            // zero without ever testing for NaN - so the fire's stored fuel would become NaN,
+            // be saved into the world, fail every "> 0" test forever, and survive RPC_AddFuel
+            // because Mathf.Clamp leaves NaN alone. One bad character in a config file would
+            // permanently kill a fire. Refusing the cap here leaves vanilla in charge instead.
+            if (float.IsNaN(fuel)) return -1.0;
             if (fuel < 0f) fuel = 0f;
 
             return (double)secondsPerFuel * fuel;
