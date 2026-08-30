@@ -29,11 +29,17 @@ namespace Ember
                 + "uninstalling.");
 
             // Fuel units rather than seconds, and that choice is doing real work. Every kind of
-            // fire has its own m_secPerFuel - a wall torch is 20000 seconds a resin, a wood
-            // ground torch 10000 - so one number in seconds would be a whole torch for one and
-            // a rounding error for another. Expressed in fuel it means the same thing
-            // everywhere, including on fires added by other mods, which is the only version of
-            // this setting a player can reason about without a table.
+            // fire has its own m_secPerFuel - ripped from this install, the cooking fires
+            // (campfire, iron campfire, hearth, bonfire) are 5000 seconds a wood, the wood
+            // ground torch 10000, and the torches and standing braziers 20000 - so one number
+            // in seconds would be four hours of a hearth and a fifth of a torch. Expressed in
+            // fuel it means the same thing everywhere, including on fires added by other mods.
+            //
+            // It is also the unit the player acts in, which is the argument against expressing
+            // it as a fraction of the tank instead: RPC_AddFuel adds exactly 1f per press
+            // whatever the fire is, so a cap of one is one press of E to put right on all of
+            // them. That holds even though one fuel is a twentieth of a hearth's twenty and a
+            // quarter of a wood ground torch's four.
             MaxFuelPerAbsence = config.Bind("Ember", "MaxFuelPerAbsence", 1f,
                 "How much fuel a fire may lose to a single absence, in the units the hover text "
                 + "counts - logs, resin, whatever that fire burns. One, because a fire you "

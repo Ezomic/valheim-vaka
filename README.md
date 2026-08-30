@@ -32,9 +32,22 @@ the deadline: a longer trip next time arrives at the same cold base. Ember caps 
 instead. What an absence costs stops depending on how long it was, and what a fire costs
 while you are using it does not change at all.
 
-For scale, from a rip of this install: a wall torch and a ground torch hold six resin at
-20,000 seconds each, so a full one is 33 hours of players-online time. A wood ground torch is
-four at 10,000, so 11 hours. Those are the numbers an absence is being billed against.
+For scale, ripped from this install. Every column is populated world time, not wall clock.
+
+| Fire | Holds | One fuel | Full tank |
+| --- | --- | --- | --- |
+| Campfire, iron campfire | 10 wood | 1h 23m | 13.9h |
+| Bonfire | 10 wood | 1h 23m | 13.9h |
+| Hearth | 20 wood | 1h 23m | 27.8h |
+| Wood ground torch | 4 wood | 2h 47m | 11.1h |
+| Standing brazier | 5 resin | 5h 33m | 27.8h |
+| Wall torch, ground torch | 6 resin | 5h 33m | 33.3h |
+
+The shape of that table is the answer to why a base goes dark unevenly. **Cooking fires burn
+four times faster per fuel than torches do.** A campfire is empty after fourteen hours of
+other people playing and a wall torch takes thirty-three, so the fires you cook and warm
+yourself on go out first and the lighting outlasts them. On a server seeing eight hours of
+company a day, a campfire is losing nearly six wood a day and a wall torch one and a half.
 
 ## Using it
 
@@ -61,8 +74,13 @@ full** even though it jumps the world clock forward, and so is the `skiptime` co
 You were standing there.
 
 It does not do anything for a short absence, and that is the cap working rather than failing.
-Nothing is trimmed until the bill passes one fuel, and for a torch one fuel is 20,000 seconds
-of populated world time. Under that, vanilla is already charging less than the cap allows.
+Nothing is trimmed until the bill passes one fuel: an hour and a half of populated world time
+for a cooking fire, five and a half hours for a torch. Under that, vanilla is already charging
+less than the cap allows and there is nothing to trim.
+
+One fuel is also exactly one press of E. Refilling adds `1f` per press whatever the fire is,
+so "an absence costs at most one press per fire" is the same promise on all six of them, even
+though one fuel is a twentieth of a hearth and a quarter of a wood ground torch.
 
 It does not touch smelters, kilns, blast furnaces, ovens or cooking stations. Those are
 different components with their own clocks on their own keys, and a smelter finishing while
@@ -73,8 +91,12 @@ purpose rather than by oversight.
 
 One thing it does that is easy to miss: a fire that stays lit stays *able to spread*.
 `IsBurning` gates the ignite loop and the cinder spawner as well as the flame, so coming home
-to a lit fire in the Ashlands means coming home to one that has been able to catch its
-neighbours. Vanilla would have let it go out.
+to a lit fire is coming home to one that can still catch what is next to it, where vanilla
+would have let it go out. Every fire ripped here carries that loop except the wall torch -
+campfire, hearth, bonfire, brazier and wood ground torch all have a non-zero ignite radius.
+It only fires where the game already allows cinders, so in practice this is an Ashlands
+concern rather than a Meadows one, but it is a thing the mod makes more likely rather than
+less.
 
 ## Telling whether it is working
 

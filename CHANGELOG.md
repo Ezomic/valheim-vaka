@@ -35,9 +35,30 @@ map, or the hours you spent across it yourself.
 ### One fuel, and what it does not buy
 
 `MaxFuelPerAbsence` is counted in fuel units rather than seconds, because every fire has its
-own rate - a wall torch is 20,000 seconds a resin, a wood ground torch 10,000 - and one
-number in seconds would be a whole torch for one and a rounding error for another. In fuel it
-means the same thing everywhere, including on fires other mods add.
+own rate and one number in seconds would be four hours of a hearth and a fifth of a torch.
+Ripped from this install:
+
+| Fire | Holds | One fuel | Full tank |
+| --- | --- | --- | --- |
+| Campfire, iron campfire | 10 wood | 1h 23m | 13.9h |
+| Bonfire | 10 wood | 1h 23m | 13.9h |
+| Hearth | 20 wood | 1h 23m | 27.8h |
+| Wood ground torch | 4 wood | 2h 47m | 11.1h |
+| Standing brazier | 5 resin | 5h 33m | 27.8h |
+| Wall torch, ground torch | 6 resin | 5h 33m | 33.3h |
+
+Two things fall out of that. **Cooking fires burn four times faster per fuel than torches**,
+so a campfire empties after fourteen hours of other people playing while a wall torch takes
+thirty-three - which is why a base goes dark unevenly and the fires you cook on go first. And
+the floor is 5,000 seconds, so no fire has a rate short enough for a cap of one fuel to come
+anywhere near a two-second tick. The worry that a short-rate prefab would make the cap throttle
+ordinary burning does not exist in this game.
+
+The unit also happens to be the one the player acts in, which is the argument against
+expressing the cap as a fraction of the tank instead. `RPC_AddFuel` adds exactly `1f` per
+press whatever the fire is, so "an absence costs at most one press of E" is the same promise
+on all six, even though one fuel is a twentieth of a hearth and a quarter of a wood ground
+torch.
 
 One unit is a real price and it is paid every time the fire comes back into play. A fire left
 nearly empty still goes out; the cap limits what an absence costs, it does not conjure fuel.
@@ -138,9 +159,13 @@ that a plain `double __result` would silently discard the write - come from read
 emitter in the installed `0Harmony.dll`. The torch numbers come from devkit rips already in
 this profile.
 
+Every fireplace prefab in the table above was ripped from the running game on 2026-08-30,
+which retired the one open question the design hung on: whether some fire had a rate short
+enough that a one-fuel cap would clamp ordinary ticks. None does - the floor is 5,000 seconds.
+No code changed as a result; the numbers only confirmed it.
+
 Not exercised at all: any fire in a running game, the cap on a real absence, the `Verbose`
-line, multiplayer of any kind, and the hearth and campfire numbers, which have not been
-ripped and are the fires most likely to be the ones actually going out.
+line, and multiplayer of any kind.
 
 The test that would settle it is written up in the README, along with why the obvious one -
 leave it overnight, come back, look - proves nothing at all in either direction.
