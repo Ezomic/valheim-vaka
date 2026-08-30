@@ -71,6 +71,17 @@ A live tick is never touched, whatever the cap says. Without that guard, setting
 `MaxFuelPerAbsence` to 0 would clamp every two-second tick to zero as well, and "an absence is
 free" would quietly mean "fires never burn at all".
 
+### Verbose reports the catch-ups it did not cap, on purpose
+
+Fuel is drawn as `Mathf.Ceil(fuel)` out of the maximum, so anything under a whole unit is
+invisible in the hover text. That makes three different states look identical from in front of
+a fire: the cap worked, nothing had burned down anyway, and the patch never applied. Logging
+only the capped ones would have preserved exactly that ambiguity.
+
+So `Verbose` writes a line on every catch-up, capped or not, and the line carries the span,
+what it was worth in fuel and what was actually charged. Walk out of a zone, wait, walk back,
+and either there is a line or the mod is not running.
+
 ### What has actually been run
 
 **Nothing in game.** It compiles clean and deploys to its own `testprofile`, and that is the

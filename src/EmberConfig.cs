@@ -48,12 +48,15 @@ namespace Ember
             // Not synced by intent - see the plugin. A diagnostic flag is personal, and a host
             // turning on someone else's logging is not a thing anybody asked for.
             Verbose = config.Bind("Diagnostics", "Verbose", false,
-                "One line per fire whenever a bill is capped, naming the fire, the stretch of "
-                + "time it was handed and what that would have cost. It is how you tell "
-                + "\"the cap worked\" from \"nothing had burned down anyway\", which look "
-                + "identical from in front of the fire. Quiet in normal play - a live fire "
-                + "never reaches the cap - but a base with thirty torches writes thirty lines "
-                + "the moment you walk into it.");
+                "One line per fire every time one comes back from being unloaded, naming the "
+                + "fire, how long it was away, what that was worth in fuel and what it was "
+                + "actually charged - including the times the cap did not apply. This is the "
+                + "only precise readout there is. Hover text draws fuel rounded up to a whole "
+                + "unit, so a fire that lost a third of a log looks identical to one that lost "
+                + "nothing, and both look identical to a mod that never loaded. Quiet while "
+                + "you are near a fire, because a live update is two seconds and is never "
+                + "reported, but a base with thirty torches writes thirty lines the moment you "
+                + "walk into it.");
         }
 
         /// <summary>

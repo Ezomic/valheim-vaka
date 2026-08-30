@@ -1,6 +1,6 @@
 # Ember
 
-A fire loses one fuel while you are away, however long you were away.
+A fire loses at most one fuel while you are away, however long you were away.
 
 An ember is the part of a fire that survives being left alone, and the thing you blow on
 when you get back rather than rebuild. That is the whole mod: come home to a fire that is
@@ -39,7 +39,7 @@ four at 10,000, so 11 hours. Those are the numbers an absence is being billed ag
 ## Using it
 
 Nothing. There is no key, no piece and no menu. Fires burn exactly as they always did while
-you are near them, and an absence costs one fuel instead of all of it.
+you are near them, and an absence costs at most one fuel instead of all of it.
 
 The one habit worth having is to top your fires up before you log off. The cap limits what an
 absence costs; it does not conjure fuel. A fire left with half a log in it still goes out.
@@ -49,7 +49,10 @@ absence costs; it does not conjure fuel. A fire left with half a log in it still
 It is not an auto-feeder. Nothing refills anything, nothing reaches into a chest, and the
 walk to the fire with an armful of wood is still the walk to the fire with an armful of wood.
 
-It is not an infinite fire. One unit off the top is a real price, paid once per absence.
+It is not an infinite fire. One unit off the top is a real price, and it is charged each time
+the fire comes back into play rather than once per calendar day. On a busy server, several
+people passing your base at different hours is several of those, because each of them loads
+the zone afresh.
 
 It does not change burning. Every second you spend in front of a fire is charged exactly what
 vanilla charges, to the same decimal. While you are there this mod provably does nothing: a
@@ -58,6 +61,20 @@ live update measures about two seconds and the cap is hours away.
 It does not touch smelters, kilns, blast furnaces, ovens or cooking stations. Those are
 different components with their own clocks on their own keys, and a smelter finishing while
 you are away is a thing players want rather than a thing to fix.
+
+## Telling whether it is working
+
+Harder than it should be, and worth knowing before you go looking. A fire's hover text draws
+its fuel rounded up to a whole unit, so a fire that quietly lost a third of a log reads the
+same as one that lost nothing, and both read the same as a mod that never loaded.
+
+Set `Verbose` to `true` in the config. Every time a fire comes back from being unloaded it
+writes one line to `BepInEx/LogOutput.log` naming the fire, how long it was away, what that
+was worth in fuel and what it was actually charged - including the times the cap did not
+apply, which is the half that tells you the patch is live at all.
+
+The quick check is to walk far enough from a fire that its zone unloads, wait a few minutes,
+and walk back. Either there is a line with numbers in it or the mod is not running.
 
 ## Installing
 

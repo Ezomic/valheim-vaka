@@ -134,26 +134,50 @@ namespace Ember
             if (__instance == null) return;
 
             // A live tick is never touched, whatever the cap says. This is the line that keeps
-            // the mod invisible while you are standing in front of the fire.
+            // the mod invisible while you are standing in front of the fire, and it is also
+            // where all but a handful of calls leave: this runs every two seconds for every
+            // fire the machine owns, and everything below is reached only on a catch-up.
             if (__result <= CatchUpAfter) return;
 
-            double cap = EmberConfig.CapSeconds(__instance.m_secPerFuel);
-            if (cap < 0.0) return;
-            if (__result <= cap) return;
-
             double charged = __result;
-            __result = cap;
+            double cap = EmberConfig.CapSeconds(__instance.m_secPerFuel);
+            bool capped = cap >= 0.0 && charged > cap;
 
-            if (!EmberConfig.Verbose.Value) return;
+            if (capped) __result = cap;
 
+            if (EmberConfig.Verbose.Value) Report(__instance, charged, __result, capped);
+        }
+
+        /// <summary>
+        /// Say what a catch-up was worth, whether or not the cap touched it.
+        ///
+        /// Reporting the uncapped ones as well is the point of this rather than a nicety.
+        /// Fuel is drawn as <c>Mathf.Ceil(fuel)</c> out of the maximum, so anything under a
+        /// whole unit is invisible in the hover text - which means "the cap worked" and "the
+        /// patch never applied" look exactly the same from in front of the fire, and so do
+        /// "the cap worked" and "nothing had burned down anyway". A line on every catch-up
+        /// makes the log the instrument: walk out of the zone, wait, walk back, and either
+        /// there is a line with the numbers in it or the mod is not running.
+        /// </summary>
+        private static void Report(Fireplace fire, double charged, double billed, bool capped)
+        {
             // Named by prefab rather than by m_name: m_name is a localisation key like
             // $piece_sconce, which is not what somebody grepping a log will be looking for.
-            string what = Utils.GetPrefabName(__instance.gameObject.name);
+            string what = Utils.GetPrefabName(fire.gameObject.name);
+            float rate = fire.m_secPerFuel;
+
+            if (!capped)
+            {
+                EmberPlugin.Log.LogInfo(
+                    what + " was away " + Span(charged) + " of world time, worth "
+                    + Fuel(charged, rate) + " fuel. Under the cap, so it was charged in full.");
+                return;
+            }
 
             EmberPlugin.Log.LogInfo(
-                what + " came back after " + Span(charged) + " of world time. Charged "
-                + Span(cap) + " of it, " + Fuel(cap, __instance.m_secPerFuel)
-                + " fuel, instead of " + Fuel(charged, __instance.m_secPerFuel) + ".");
+                what + " was away " + Span(charged) + " of world time, worth "
+                + Fuel(charged, rate) + " fuel. Charged " + Span(billed) + ", "
+                + Fuel(billed, rate) + " fuel.");
         }
 
         /// <summary>A span of seconds, in whichever unit reads without arithmetic.</summary>
