@@ -148,8 +148,19 @@ finding out which.
 
 ### What has actually been run
 
-**Nothing in game.** It compiles clean and deploys to its own `testprofile`, and that is the
-whole of it. It is deliberately in neither `build-all.ps1` nor `server.ps1`.
+**The cap works, measured in game on 2026-09-04.** A campfire at 10 fuel, teleported away
+from so the zone unloaded, `skiptime 20000`, teleported back:
+
+    fire_pit was away 5,6h of world time, worth 4,00 fuel. Charged 83,3m, 1,00 fuel.
+
+Every number in that line is exact against the rip. 5.6h is the 20,000 second skip; 4.00 fuel
+is 20,000 divided by the campfire's 5,000 seconds a fuel; 83.3 minutes is 5,000 seconds, which
+is the cap to the second. One line, so nothing double-billed on re-entry, and no exception in
+either `LogOutput.log` or `Player.log`.
+
+That one line is both arms of the test, because it reports what vanilla would have charged
+alongside what was charged - so the `Enabled = false` control run was not needed to make the
+claim. It is deliberately in neither `build-all.ps1` nor `server.ps1`.
 
 What is verified, and how: the mechanism, the single call site, the return type and the
 absence of any other timed fuel drain on a `Fireplace` come from a full ILSpy decompile of the
@@ -164,11 +175,19 @@ which retired the one open question the design hung on: whether some fire had a 
 enough that a one-fuel cap would clamp ordinary ticks. None does - the floor is 5,000 seconds.
 No code changed as a result; the numbers only confirmed it.
 
-Not exercised at all: any fire in a running game, the cap on a real absence, the `Verbose`
-line, and multiplayer of any kind.
+Still not exercised, and the first of these is the one that matters. The run above skipped
+time while the fire was *unloaded*, so it proved the cap fires on a real absence and did not
+touch the other half of the discriminator: that sleeping or skipping time while standing at
+the fire is charged in full. That half is what stops a night's sleep being free burn, and it
+is thirty seconds to check - skip time next to a lit fire and there should be no Ember line at
+all, and four fuel gone.
 
-The test that would settle it is written up in the README, along with why the obvious one -
-leave it overnight, come back, look - proves nothing at all in either direction.
+Also untouched: multiplayer of any kind, ownership moving between clients, the `Verbose` gate
+that is meant to stay silent on unlit and infinite-fuel fires, and every fire type except the
+campfire.
+
+The README carries the recipe, along with why the obvious test - leave it overnight, come
+back, look - proves nothing at all in either direction.
 
 ### What this is worth, stated at the right scale
 
