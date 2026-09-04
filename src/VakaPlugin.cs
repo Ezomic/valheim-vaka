@@ -5,10 +5,10 @@ using BepInEx.Logging;
 using Ezomic.Core;
 using HarmonyLib;
 
-namespace Ember
+namespace Vaka
 {
     /// <summary>
-    /// Ember. A fire may lose one fuel to an absence, however long the absence was.
+    /// Vaka. A fire may lose one fuel to an absence, however long the absence was.
     ///
     /// The complaint this comes from is a day away and a base of cold fires, with a bill in
     /// wood and resin to light them again - and nobody having been anywhere near them. The
@@ -56,11 +56,11 @@ namespace Ember
     // should not need two installs to get one mod. Soft still buys the load-order guarantee
     // when Core is present, which is all that registering with the gate needs.
     [BepInDependency(CoreGuid, BepInDependency.DependencyFlags.SoftDependency)]
-    public class EmberPlugin : BaseUnityPlugin
+    public class VakaPlugin : BaseUnityPlugin
     {
-        public const string PluginGuid = "ezomic.valheim.ember";
-        public const string PluginName = "Ember";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginGuid = "ezomic.valheim.vaka";
+        public const string PluginName = "Vaka";
+        public const string PluginVersion = "1.0.0";
         public const string PluginAuthor = "Robbin Thijssen";
 
         /// <summary>Core's plugin GUID. Optional - see TryRegisterWithCore.</summary>
@@ -84,18 +84,18 @@ namespace Ember
             // Config first. Registering absorbs every entry the mod has bound, so anything bound
             // after this line is carried only because Core re-absorbs at manifest time - and
             // depending on the order of two lines in an Awake is not a thing worth relying on.
-            EmberConfig.Bind(Config);
+            VakaConfig.Bind(Config);
 
             TryRegisterWithCore();
 
             // PatchAll over a named type, never the whole assembly - a bare PatchAll() walks
             // every type in the DLL, so a half-written patch class goes live the moment it
-            // compiles. It goes through EmberPatches.Apply rather than being called here
+            // compiles. It goes through VakaPatches.Apply rather than being called here
             // because the one method this mod patches is private and matched by name, and the
             // whole mod is that one patch: a rename in a game update should cost the feature
             // and one clear line in the log, not an exception thrown out of Awake.
             _harmony = new Harmony(PluginGuid);
-            EmberPatches.Apply(_harmony);
+            VakaPatches.Apply(_harmony);
 
             // The startup line every mod in the suite writes. It is how a log answers "which
             // build of what is actually loaded" without anyone guessing.
@@ -147,14 +147,14 @@ namespace Ember
             // Registering already absorbs the whole config file, so naming these is a
             // formality. It is worth writing anyway: this is the mod's entire balance plus its
             // kill switch, and saying out loud that the host owns both is the point of putting
-            // Ember on a server at all. A guest running a cap of 50 would be playing with
+            // Vaka on a server at all. A guest running a cap of 50 would be playing with
             // fires that never go out on somebody else's world.
-            Suite.Sync(EmberConfig.Enabled, EmberConfig.MaxFuelPerAbsence);
+            Suite.Sync(VakaConfig.Enabled, VakaConfig.MaxFuelPerAbsence);
 
             // Opting the diagnostic back out. A host reaching across to switch on someone's
             // logging for the evening is not a thing anybody asked for, and a log line cannot
             // desync a world.
-            Suite.Local(EmberConfig.Verbose);
+            Suite.Local(VakaConfig.Verbose);
         }
 
         private void OnDestroy()

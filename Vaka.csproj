@@ -11,13 +11,13 @@
 
   <PropertyGroup>
     <TargetFramework>net462</TargetFramework>
-    <AssemblyName>Ember</AssemblyName>
-    <RootNamespace>Ember</RootNamespace>
+    <AssemblyName>Vaka</AssemblyName>
+    <RootNamespace>Vaka</RootNamespace>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
     <Authors>Robbin Thijssen</Authors>
     <Company>Thijssen Software</Company>
-    <Product>Ember</Product>
+    <Product>Vaka</Product>
     <Description>Fires keep while you are away. A single absence costs one fuel, however long it was.</Description>
     <Copyright>Copyright (c) 2026 Robbin Thijssen</Copyright>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -37,7 +37,7 @@
     -->
     <ProfileDir Condition="'$(ProfileDir)' == ''">$(MSBuildProjectDirectory)\testprofile</ProfileDir>
     <BepInExCore>$(ProfileDir)\BepInEx\core</BepInExCore>
-    <DeployDir>$(ProfileDir)\BepInEx\plugins\Ember</DeployDir>
+    <DeployDir>$(ProfileDir)\BepInEx\plugins\Vaka</DeployDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -74,7 +74,7 @@
     belong in assets\variants\ so they are not copied - that folder is not matched here.
 
   <ItemGroup>
-    <EmberAsset Include="assets\*.obj;assets\*.col;assets\*.png" />
+    <VakaAsset Include="assets\*.obj;assets\*.col;assets\*.png" />
   </ItemGroup>
   -->
 
@@ -87,7 +87,7 @@
   <Target Name="Deploy" AfterTargets="Build" Condition="Exists('$(ProfileDir)\BepInEx\plugins')">
     <MakeDir Directories="$(DeployDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DeployDir)" ContinueOnError="true" />
-    <!-- <Copy SourceFiles="@(EmberAsset)" DestinationFolder="$(DeployDir)" ContinueOnError="true" /> -->
+    <!-- <Copy SourceFiles="@(VakaAsset)" DestinationFolder="$(DeployDir)" ContinueOnError="true" /> -->
   </Target>
 
 </Project>

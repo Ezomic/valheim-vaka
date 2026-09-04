@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 
-namespace Ember
+namespace Vaka
 {
     /// <summary>
     /// One postfix, on one private method, changing one number.
@@ -36,7 +36,7 @@ namespace Ember
     /// prefabs ripped from this install are Piece, ZNetView, WearNTear, Fireplace and nothing
     /// else.
     /// </summary>
-    internal static class EmberPatches
+    internal static class VakaPatches
     {
         /// <summary>The private method this mod exists to adjust.</summary>
         private const string Target = "GetTimeSinceLastUpdate";
@@ -68,15 +68,15 @@ namespace Ember
             {
                 if (AccessTools.Method(typeof(Fireplace), Target) == null)
                 {
-                    EmberPlugin.Log.LogError(
-                        "Ember is doing nothing: Fireplace." + Target + " is not in this build "
+                    VakaPlugin.Log.LogError(
+                        "Vaka is doing nothing: Fireplace." + Target + " is not in this build "
                         + "of the game, so there is nothing to cap and fires burn the vanilla "
                         + "way. That method is private and matched by name, so a game update is "
                         + "the likely reason.");
                     return;
                 }
 
-                harmony.PatchAll(typeof(EmberPatches));
+                harmony.PatchAll(typeof(VakaPatches));
             }
             catch (System.Exception e)
             {
@@ -84,8 +84,8 @@ namespace Ember
                 // feature. There is only the one patch, so a failure here is the whole mod, and
                 // the next line in the log is the ordinary "- ready." that every mod in the
                 // suite writes - which means "loaded", not "working".
-                EmberPlugin.Log.LogError(
-                    "Ember is doing nothing: could not patch Fireplace." + Target
+                VakaPlugin.Log.LogError(
+                    "Vaka is doing nothing: could not patch Fireplace." + Target
                     + ", so fires burn the vanilla way. " + e.Message);
             }
         }
@@ -165,14 +165,14 @@ namespace Ember
             _billed.Add(__instance, null);
 
             double charged = __result;
-            double cap = EmberConfig.CapSeconds(__instance.m_secPerFuel);
+            double cap = VakaConfig.CapSeconds(__instance.m_secPerFuel);
 
             // cap is negative when the mod is off, and NaN fails every comparison it is in, so
             // a config file hand-edited to NaN or a nonsense rate leaves vanilla alone rather
             // than writing a NaN into the fuel the world saves.
             if (cap >= 0.0 && charged > cap) __result = cap;
 
-            if (EmberConfig.Verbose.Value) Report(__instance, charged, __result);
+            if (VakaConfig.Verbose.Value) Report(__instance, charged, __result);
         }
 
         /// <summary>
@@ -207,13 +207,13 @@ namespace Ember
 
             if (billed >= charged)
             {
-                EmberPlugin.Log.LogInfo(
+                VakaPlugin.Log.LogInfo(
                     what + " was away " + Span(charged) + " of world time, worth "
                     + Fuel(charged, rate) + " fuel. Under the cap, so it was charged in full.");
                 return;
             }
 
-            EmberPlugin.Log.LogInfo(
+            VakaPlugin.Log.LogInfo(
                 what + " was away " + Span(charged) + " of world time, worth "
                 + Fuel(charged, rate) + " fuel. Charged " + Span(billed) + ", "
                 + Fuel(billed, rate) + " fuel.");

@@ -1,8 +1,36 @@
 # Changelog
 
-## 0.1.0 - unreleased
+Notable changes to Vaka. Format follows [Keep a Changelog](https://keepachangelog.com),
+and the mod uses [semantic versioning](https://semver.org).
 
-First version. A fire loses at most one fuel to an absence, however long the absence was.
+## [1.0.0] - 2026-09-04
+
+First release. A fire loses at most one fuel to an absence, however long the absence was.
+
+### Named Vaka, having been built as Ember
+
+*Vaka* is the Old Norse for a vigil, a watch kept through a night nobody else is awake for,
+which is what the mod asks of a fire. It was written under the name Ember and renamed before
+any of it was published.
+
+The rename was not taste. **Ember collides on Thunderstore** - there is already a Valheim
+package `Ember/ember`, plus `ember_server` and `Embers_of_Niflheim` - and outside Valheim the
+word belongs to Ember.js and to Warframe, which would have hurt the repo and the C# namespace
+too. Checking that took some care: Thunderstore's web search silently ignores its `?q=`
+parameter and returns the default popular listing, so the obvious check reports a false
+all-clear. The package index was downloaded whole and grepped instead, and the eight names
+shortlisted were all verified clear that way.
+
+The name also stopped describing the mod. Ember is a fire word, and this is not a mod about
+fire - it never changes what a fire burns while you are standing at it, and its entire subject
+is the unloaded zone. It sat too close to Kynda, which is already Old Norse for "to kindle".
+Vaka names the absence instead.
+
+Renaming cost nothing because nothing had shipped and the mod registers no prefabs, so no ZDO
+is keyed on a name that would stop resolving - the cost Kynda paid deliberately when its test
+pieces died. The config section moved from `[Ember]` to `[Vaka]` for the same reason: renaming
+a section silently resets every value under it, which would matter if anyone but the author
+had a config file, and nobody does.
 
 ### The line this sits on
 
@@ -178,7 +206,7 @@ No code changed as a result; the numbers only confirmed it.
 **The discriminator was then checked in the other direction, in the same session.** The same
 skip run while standing at the fire, with it loaded and ticking the whole time:
 
-| Test | Fuel | Ember line | |
+| Test | Fuel | Vaka line | |
 | --- | --- | --- | --- |
 | `skiptime 20000`, zone unloaded | 10 to 9 | logged, 4.00 charged as 1.00 | capped |
 | `skiptime 20000`, stood at the fire | 10 to 6 | none | vanilla, untouched |

@@ -1,10 +1,11 @@
-# Ember
+# Vaka
 
 A fire loses at most one fuel while you are away, however long you were away.
 
-An ember is the part of a fire that survives being left alone, and the thing you blow on
-when you get back rather than rebuild. That is the whole mod: come home to a fire that is
-one log down, not a base of cold ash and a bill in resin.
+*Vaka* is the Old Norse for a vigil - the keeping of a watch through a night nobody else is
+awake for. That is what this asks of a fire, and it is deliberately not "burn forever": the
+fire keeps its own watch until you are back, and charges you a log for the trouble. Come home
+to one wood gone, not to cold ash and a bill in resin.
 
 ## Why
 
@@ -28,7 +29,7 @@ singleplayer it is every hour you spent across the map yourself.
 
 The obvious fix is to make fuel last longer, and it is wrong twice over. It makes a fire
 cheaper while you are stood at it cooking, which was never the complaint, and it only moves
-the deadline: a longer trip next time arrives at the same cold base. Ember caps the bill
+the deadline: a longer trip next time arrives at the same cold base. Vaka caps the bill
 instead. What an absence costs stops depending on how long it was, and what a fire costs
 while you are using it does not change at all.
 
@@ -134,15 +135,15 @@ several separate absences, each legitimately capped, which drains the torch and 
 cap at all.
 
 Standing next to the fire and running `skiptime` will show no difference, on purpose. That is
-not an absence, and Ember charges it in full.
+not an absence, and Vaka charges it in full.
 
 ## Installing
 
-Drop `Ember.dll` into `BepInEx/plugins`. BepInEx 5.4.23.3, and nothing else is required.
+Drop `Vaka.dll` into `BepInEx/plugins`. BepInEx 5.4.23.3, and nothing else is required.
 
 ## Settings
 
-The file is `BepInEx/config/ezomic.valheim.ember.cfg`. Every setting has a comment above it,
+The file is `BepInEx/config/ezomic.valheim.vaka.cfg`. Every setting has a comment above it,
 so the file explains itself. The one worth knowing about is `MaxFuelPerAbsence`, which is the
 whole mod: one unit by default, `0` to make an absence free, and a large number to put vanilla
 back. It is counted in the units the fire's own hover text counts, so it means the same thing

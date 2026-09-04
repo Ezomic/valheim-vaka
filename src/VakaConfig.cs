@@ -1,6 +1,6 @@
 using BepInEx.Configuration;
 
-namespace Ember
+namespace Vaka
 {
     /// <summary>
     /// Everything tunable, bound in one place so the .cfg reads as a document rather than as
@@ -9,11 +9,11 @@ namespace Ember
     /// The standing BepInEx trap applies: every entry is written to disk on first run and the
     /// saved value beats a new default in code. Changing a default here does nothing on a
     /// machine that has already run the plugin - edit
-    /// <c>&lt;profile&gt;\BepInEx\config\ezomic.valheim.ember.cfg</c> as part of the same
+    /// <c>&lt;profile&gt;\BepInEx\config\ezomic.valheim.vaka.cfg</c> as part of the same
     /// change. When a config-driven change appears to do nothing in game, read the cfg before
     /// reading any code.
     /// </summary>
-    internal static class EmberConfig
+    internal static class VakaConfig
     {
         public static ConfigEntry<bool> Enabled;
         public static ConfigEntry<float> MaxFuelPerAbsence;
@@ -22,7 +22,7 @@ namespace Ember
 
         public static void Bind(ConfigFile config)
         {
-            Enabled = config.Bind("Ember", "Enabled", true,
+            Enabled = config.Bind("Vaka", "Enabled", true,
                 "Whether the cap applies at all. Off leaves the plugin loaded and charging "
                 + "vanilla's full bill for every absence, which is the behaviour this mod "
                 + "exists to change - so off is only useful for telling the two apart without "
@@ -40,7 +40,7 @@ namespace Ember
             // whatever the fire is, so a cap of one is one press of E to put right on all of
             // them. That holds even though one fuel is a twentieth of a hearth's twenty and a
             // quarter of a wood ground torch's four.
-            MaxFuelPerAbsence = config.Bind("Ember", "MaxFuelPerAbsence", 1f,
+            MaxFuelPerAbsence = config.Bind("Vaka", "MaxFuelPerAbsence", 1f,
                 "How much fuel a fire may lose to a single absence, in the units the hover text "
                 + "counts - logs, resin, whatever that fire burns. One, because a fire you "
                 + "banked full should still be lit when you get back, and one unit off the top "
