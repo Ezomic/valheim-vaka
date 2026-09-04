@@ -175,16 +175,23 @@ which retired the one open question the design hung on: whether some fire had a 
 enough that a one-fuel cap would clamp ordinary ticks. None does - the floor is 5,000 seconds.
 No code changed as a result; the numbers only confirmed it.
 
-Still not exercised, and the first of these is the one that matters. The run above skipped
-time while the fire was *unloaded*, so it proved the cap fires on a real absence and did not
-touch the other half of the discriminator: that sleeping or skipping time while standing at
-the fire is charged in full. That half is what stops a night's sleep being free burn, and it
-is thirty seconds to check - skip time next to a lit fire and there should be no Ember line at
-all, and four fuel gone.
+**The discriminator was then checked in the other direction, in the same session.** The same
+skip run while standing at the fire, with it loaded and ticking the whole time:
 
-Also untouched: multiplayer of any kind, ownership moving between clients, the `Verbose` gate
+| Test | Fuel | Ember line | |
+| --- | --- | --- | --- |
+| `skiptime 20000`, zone unloaded | 10 to 9 | logged, 4.00 charged as 1.00 | capped |
+| `skiptime 20000`, stood at the fire | 10 to 6 | none | vanilla, untouched |
+
+6/10 is exactly 10 minus 20,000 over 5,000, so the present case is billed at full vanilla
+rate, and the log still carried exactly one catch-up line for the whole session. That is the
+half that stops a night's sleep being free burn, and it is the half the first cut of this mod
+got wrong. Both directions now hold: an absence is the fire not having run, and a large gap on
+its own is not enough to trigger one.
+
+Still untouched: multiplayer of any kind, ownership moving between clients, the `Verbose` gate
 that is meant to stay silent on unlit and infinite-fuel fires, and every fire type except the
-campfire.
+campfire. None of those block calling the mechanism proven.
 
 The README carries the recipe, along with why the obvious test - leave it overnight, come
 back, look - proves nothing at all in either direction.
