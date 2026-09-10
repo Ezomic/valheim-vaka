@@ -4,7 +4,7 @@
     "version_number":  "1.0.0",
     "description":  "Fires keep while you are away. A single absence costs one fuel, however long it was.",
     "dependencies":  [
-                         "denikson-BepInExPack_Valheim-5.4.2333"
+                         "denikson-BepInExPack_Valheim-5.4.2350"
                      ],
     "website_url":  "https://github.com/Ezomic/valheim-vaka"
 }
