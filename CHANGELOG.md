@@ -3,6 +3,15 @@
 Notable changes to Vaka. Format follows [Keep a Changelog](https://keepachangelog.com),
 and the mod uses [semantic versioning](https://semver.org).
 
+## [1.0.1] - 2026-09-12
+
+### Changed
+
+- Rewritten README. Same mod, clearer documentation: what it does and how to install it come
+  first, then configuration, multiplayer behaviour, compatibility and troubleshooting. Every
+  config table was checked against the plugin's own Config.Bind calls, so the settings,
+  sections and defaults listed are the ones actually bound. No code changed in this release.
+
 ## [1.0.0] - 2026-09-04
 
 First release. A fire loses at most one fuel to an absence, however long the absence was.
