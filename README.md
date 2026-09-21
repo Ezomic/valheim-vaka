@@ -193,6 +193,15 @@ attach:
 - `BepInEx/config/ezomic.valheim.vaka.cfg`.
 - The prefab name of the fire, if it is one specific piece behaving oddly.
 
+## Bugs and ideas
+
+Both go to the site. [longhouse.thijssensoftware.nl/bugs](https://longhouse.thijssensoftware.nl/bugs)
+is for anything broken, and [longhouse.thijssensoftware.nl/ideas](https://longhouse.thijssensoftware.nl/ideas)
+is for what a mod should do next. You can vote on other people's ideas there as well.
+
+Signing in takes a Steam or Discord account. I work from that list, so the votes decide what
+I pick up next.
+
 ## Discord
 
 [discord.gg/hJzAVaZ5wb](https://discord.gg/hJzAVaZ5wb) for mod information, updates, support,
