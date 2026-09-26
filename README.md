@@ -1,16 +1,22 @@
 # Vaka
 
-Vaka caps what a fireplace loses while nobody is there. A single absence costs at most one
-fuel, however long it lasted. Burning while you are standing at the fire is untouched.
+Vaka does two things to fires. It caps what a fireplace loses while nobody is there, so a
+single absence costs at most one fuel however long it lasted. And lights that burn resin or
+coal hold each unit twice as long. Cooking fires burn wood, and while you stand at one it
+burns exactly what vanilla says.
 
 ## Features
 
 - A fire is charged at most one fuel for any one absence. The amount is configurable.
-- Live burning is exactly vanilla, to the decimal. Sleeping and `skiptime` are still charged
-  in full, because the fire was loaded and ticking the whole time.
+- A fire that burns resin or coal lasts twice as long per unit, whether you are there or not.
+  Which fuels count and how much longer are both configurable.
+- Wood fires burn exactly as vanilla, to the decimal, while you are at them. Sleeping and
+  `skiptime` are charged in full at the fire's own rate, because the fire was loaded and
+  ticking the whole time.
 - Covers every piece that uses the vanilla `Fireplace` component, including fires added by
   other mods.
 - No new pieces, no keybinds, no UI, no new saved data. One Harmony postfix on one method.
+- A log line on every world load naming the fires the light rule applies to.
 - Optional logging that reports what each catch-up was worth and what it was actually charged.
 
 ## How it works
@@ -29,9 +35,9 @@ a single player world resumes exactly where it stopped. What actually drains you
 hours other people spent online elsewhere on the map, or in single player, the hours you spent
 across it yourself.
 
-Vaka caps that first bill rather than making fuel last longer. A longer fuse would make a fire
-cheaper while you are cooking at it, which was never the problem, and a longer trip next time
-would still arrive at a cold base.
+Vaka caps that first bill rather than making all fuel last longer. A longer fuse on every fire
+would make cooking cheaper while you are stood at the campfire, which was never the problem,
+and a longer trip next time would still arrive at a cold base.
 
 An absence is recognised by the fireplace object not having been running, not by the size of
 the gap. The game creates a fireplace when its zone loads and destroys it when the zone goes,
@@ -39,10 +45,30 @@ so the first update for a new object is the one paying off however long it was a
 later update is a live tick and is charged in full whatever its size. That is why sleeping
 through the night and the `skiptime` console command still cost full price.
 
+### Light fuels
+
+The second rule is a longer fuse, and only for light. A fire whose fuel is on the
+`LightFuels` list burns each unit `LightFuelMultiplier` times as long. The defaults are resin
+and coal, twice as long. It applies all the time, at the fire and away from it.
+
+It stays off cooking fires for the reason the cap is a cap. A longer fuse on a campfire makes
+cooking cheaper, and nobody asked for that. Nobody cooks on a torch, so there it only means
+fewer rounds of the base with a stack of resin.
+
+The rule reads what a fire burns rather than which piece it is, so a torch from another mod
+that burns resin is covered without anything to update. Which pieces burn resin or coal is the
+game's own data, so Vaka reads it when a world loads and writes one line to the log naming
+the fires the rule applies to, grouped by fuel. A fuel on the list that nothing burns is
+named too, with "no fireplace in this world burns it".
+
+The two rules stack. The cap is counted in fuel, so an absence still costs a torch at most one
+resin. The torch just has to be left alone twice as long before the bill gets there.
+
 ## What it covers
 
 Anything carrying the vanilla `Fireplace` component: every player-buildable fire, and any
-modded fire built on the same component. Numbers ripped from the running game:
+modded fire built on the same component. Numbers ripped from the running game, at vanilla
+rates:
 
 | Piece | Prefab | Holds | One fuel | Full tank |
 | --- | --- | --- | --- | --- |
@@ -57,10 +83,14 @@ modded fire built on the same component. Numbers ripped from the running game:
 Every column is populated world time, not wall clock. Cooking fires and the wood ground torch
 burn wood; the ground torch, wall torch and standing brazier burn resin.
 
-Cooking fires burn four times faster per fuel than torches do, which is why a base goes dark
-unevenly. A campfire is empty after about fourteen hours of other people playing, a wall torch
-after thirty-three, so the fires you cook and warm yourself on go out first and the lighting
-outlasts them.
+With the light rule at its default, a fire burning resin or coal doubles both of its last two
+columns. A wall torch holds a resin for 11h 7m and a full one lasts about 67 hours. The log
+line on world load says which fires that is in your game.
+
+In vanilla, cooking fires burn four times faster per fuel than torches do, which is why a base
+goes dark unevenly. A campfire is empty after about fourteen hours of other people playing, a
+wall torch after thirty-three, so the fires you cook and warm yourself on go out first and the
+lighting outlasts them. With the light rule at its default the gap is eight times.
 
 Not covered:
 
@@ -80,6 +110,7 @@ the ignite loop as well as the flame, so coming home to a lit fire is coming hom
 can still catch what is next to it, where vanilla would have let it go out. Every fire in the
 table above has a non-zero ignite radius except the wall torch. It only triggers where the game
 already allows cinders, so in practice this is an Ashlands concern rather than a Meadows one.
+A torch the light rule keeps burning longer can spread for longer too.
 
 ## Installation
 
@@ -99,14 +130,20 @@ comment in the file.
 
 | Setting | Section | Default | Effect |
 | --- | --- | --- | --- |
-| `Enabled` | `[Vaka]` | `true` | Whether the cap applies. Off leaves the plugin loaded and charges vanilla's full bill for every absence, which is useful for telling the two apart without uninstalling. |
+| `Enabled` | `[Vaka]` | `true` | Whether Vaka does anything. Off leaves the plugin loaded with both rules off: every absence is charged vanilla's full bill and every fuel burns at vanilla's rate. Useful for telling the two apart without uninstalling. |
 | `MaxFuelPerAbsence` | `[Vaka]` | `1` | How much fuel a fire may lose to a single absence, in the units the hover text counts. `0` makes an absence free. A large number restores vanilla. |
-| `Verbose` | `[Diagnostics]` | `false` | One log line per fire every time one comes back from being unloaded. See Checking that it works. |
+| `LightFuels` | `[Vaka]` | `Resin, Coal` | Fuel items whose fires burn longer, by prefab name, separated by commas. Empty turns the light rule off. |
+| `LightFuelMultiplier` | `[Vaka]` | `2` | How many times longer each unit of a light fuel burns. `1` turns the light rule off. Anything below 1 counts as 1, so no fire ever burns faster than vanilla. |
+| `Verbose` | `[Diagnostics]` | `false` | One log line per fire every time one comes back from being unloaded, and on world load a list of every fireplace with its fuel and burn rate. See Checking that it works. |
 
 `MaxFuelPerAbsence` is counted in fuel units rather than seconds, so it means the same thing on
 a torch burning resin and a hearth burning wood, and on fires added by other mods. It is also
 one press of E: refuelling adds exactly one unit per press whatever the fire is. It never
 affects a fire you are standing next to, whatever you set it to.
+
+`LightFuels` takes item prefab names, such as `Resin` or `Coal`, not the names shown in game.
+The `Verbose` list prints every fire's fuel under exactly that name, so if you want another
+torch covered, find it there and copy its fuel into the list.
 
 BepInEx writes every entry to disk on first run and the saved value beats a new default in
 code. If a later version changes a default, edit the cfg as part of the same update.
@@ -122,18 +159,26 @@ looking reasonable. Installing it on the server alone does not help: a dedicated
 sets a reference position, so it is never a candidate owner for a player-built fire and there
 is no host simulation to put the cap in.
 
-With Longhouse Core installed, Vaka registers with its version check and the server rejects
-clients whose version or build id does not match. The host's `Enabled` and `MaxFuelPerAbsence`
-then apply to connected clients in memory, without writing their own config file, and their
-values come back on disconnect. `Verbose` stays local to each player.
+The light rule has the same weakness. A torch burns at whatever rate its current owner's game
+says, so while a player without Vaka owns it, it burns at vanilla speed.
 
-Without Core, Vaka still caps absences on your own machine, but nothing stops a client that
-lacks it from removing the cap for everyone.
+With Longhouse Core installed, Vaka registers with its version check and the server rejects
+clients whose version or build id does not match. The host's `Enabled`, `MaxFuelPerAbsence`,
+`LightFuels` and `LightFuelMultiplier` then apply to connected clients in memory, without
+writing their own config file, and their values come back on disconnect. `Verbose` stays local
+to each player.
+
+Without Core, Vaka still works on your own machine, but nothing stops a client that lacks it
+from removing the cap for everyone, or from burning your torches at the vanilla rate.
 
 ## Checking that it works
 
 Hover text draws fuel rounded up to a whole unit, so a fire that quietly lost a third of a log
 reads the same as one that lost nothing, and both read the same as a mod that never loaded.
+
+For the light rule, read the line Vaka writes to `BepInEx/LogOutput.log` when the first fire
+near you loads in a world. It starts with "Light fuels last 2x as long" and names every fire
+the rule applies to, grouped by fuel. If the rule is off, the line says so and why.
 
 Set `Verbose = true`. Every catch-up writes one line to `BepInEx/LogOutput.log` naming the
 fire, how long it was away, what that was worth in fuel and what it was charged, including the
@@ -158,11 +203,21 @@ permanently marks a character as having used cheats:
 4. With `Enabled = false` the torch reads 0/6 and is dark. With it `true` it reads 5/6 and is
    still lit.
 
-Use at least three times the cap. `skiptime 20000` bills exactly one fuel either way, which
-looks like a failure and is not. Do one skip and let one tick land: several skips in a row are
-several separate absences, each capped on its own, which drains the torch and reads as no cap
-at all. Running `skiptime` while standing at the fire shows no difference, because that is not
-an absence.
+Use at least three times the cap. With the light rule on, one resin is 40,000 seconds of a
+torch's time, and `skiptime 40000` costs it exactly one fuel whether the cap applied or not,
+which looks like a failure and is not. Do one skip and let one tick land: several skips in a
+row are several separate absences, each capped on its own, which drains the torch and reads as
+no cap at all. Running `skiptime` while standing at the fire shows nothing about the cap,
+because that is not an absence.
+
+It does show the light rule. Same throwaway world:
+
+1. Place a ground torch outdoors. `devcommands`, then `setfuel 6`.
+2. Stay next to it and run `skiptime 30000`.
+3. With `Enabled = false` it burns 1.5 resin and reads 5/6. With it `true` it burns 0.75 and
+   still reads 6/6.
+
+The torch is loaded the whole time, so the cap plays no part in this one.
 
 ## Troubleshooting
 
@@ -178,8 +233,13 @@ rather than expecting a new default to apply.
 Core nothing enforces that, and one client without it is enough.
 
 **Nothing is logged for a short trip.** Nothing is trimmed until the bill passes one fuel,
-which is an hour and a half of populated world time for a cooking fire and five and a half
-hours for a torch. Under that, vanilla is already charging less than the cap allows.
+which is an hour and a half of populated world time for a cooking fire and eleven hours for a
+torch burning resin under the light rule. Under that, the bill is already less than the cap
+allows.
+
+**A torch still burns at the vanilla rate.** The light rule goes by fuel, not by piece. Check
+the world-load log line: a torch missing from it burns something that is not on `LightFuels`.
+Turn on `Verbose` to see what it burns, and add that name to the list if you want it covered.
 
 ## Bug reports
 

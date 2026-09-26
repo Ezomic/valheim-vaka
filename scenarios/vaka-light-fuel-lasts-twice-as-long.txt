@@ -1,0 +1,137 @@
+# Vaka - a torch burning resin holds each unit twice as long, and a campfire burning wood does not.
+#
+# Run this in SINGLEPLAYER, on a test world, standing in the open on flat ground with nothing
+# you care about within 12m. Three things here are not free:
+#
+#   - `wipe 12` takes down EVERYTHING built within 12m, not only what this file placed.
+#   - it moves the world clock forward about twenty-four days. The day count drives spawn
+#     tables and raids, and Devkit only ever moves the clock forward, so this cannot be undone.
+#   - the time steps go through ServerBridge, and on a guest moving the clock is the server's
+#     to do and may be refused, which would fail this file for a reason unrelated to the mod.
+#
+# HOW IT WORKS. Devkit cannot read a fire's burn rate, and the hover text shows fuel rounded up
+# to a whole unit. So this burns a known amount of world time through two full fires that are
+# loaded and ticking, and reads the whole units left. A fire that is loaded when the clock
+# jumps is billed the whole jump on its next two-second tick, and Vaka's absence cap never
+# touches that tick - the CHANGELOG's stood-at-the-fire test measured exactly this on 1.0.0.
+# So the only thing between vanilla and what these fires read is the light rule.
+#
+# Each `daytime midday` moves to the next noon, so 24 of them move the clock between 23 and
+# 24 days. On a 1800s day that is 41,400 to 43,200 seconds.
+#
+#   campfire, wood, 5000s a fuel, full at 10:  loses 8.3 to 8.6    reads 2/10
+#   ground torch, resin, 20000s a fuel, full at 6:
+#       light rule on, burns as 40000s         loses 1.0 to 1.1    reads 5/6
+#       light rule off (vanilla)               loses 2.1 to 2.2    reads 4/6
+#       rule applied twice (80000s)            loses 0.5           reads 6/6
+#
+# THE CAMPFIRE IS THE RULER, and it is why this file can be trusted at all. Day length is asset
+# data - EnvMan.m_dayLengthSec reads 1200 in a decompile and that is only the class default -
+# and 1800 is the figure this file assumes. The campfire burns wood, which the rule never
+# touches, so it measures how far the clock actually moved: 2/10 means 40,000 to 45,000
+# seconds, the range every torch row above was worked out for. IF THE CAMPFIRE LINE FAILS, the
+# torch line after it says nothing about the mod; the day is a different length and the
+# number of `daytime midday` lines needs changing, not the code. It holds for any day length
+# from about 1740s to 1870s.
+#
+# The torch is asked for 5/6 rather than 6/6 on purpose. A torch that was switched off, rained
+# out or blocked would also read 6/6, so a test that passed on "it did not burn down" could pass
+# on a dark torch. 5/6 needs it to have burned, and to have burned at half the vanilla rate.
+#
+# The burn rates are the ones ripped from this install on 2026-08-30 and have not been re-read
+# since. Vaka's own log line on world load lists every fireplace's fuel and rate, and is the
+# place to check them if a number here looks wrong.
+#
+# What it cannot cover, so that a pass is not read as more than it is:
+#
+#   - any fire that burns coal. Which piece that is has never been checked, so there is
+#     nothing to place. The world-load log line answers it.
+#   - the log line itself. Devkit reads the chat window and console output, not LogOutput.log.
+#   - an absence. At the rule's rate a torch has to be away 80,000 seconds before an uncapped
+#     bill reads differently from a capped one, which is forty-five days of clock for a single
+#     absence. The README's skiptime recipe covers the cap and the rule together by
+#     hand, and its 5/6 also catches the cap being applied before the rule instead of after.
+#   - multiplayer, and Core handing a host's multiplier to a client.
+
+clear
+give Wood:20
+give Resin:10
+god
+ghost
+sweep
+
+wipe 12
+wait 1
+flatten
+wait 1
+
+# Four metres apart, in the open. Anything solid within about a metre above a fire stops it
+# burning at all, which would pass the "full" checks and then read full at the end as well.
+place fire_pit 3 -2
+place piece_groundtorch 3 2
+wait 2
+
+# Fill both by hand, which is Fireplace.Interact and RPC_AddFuel - one unit a press, refused
+# once the rounded-up fuel reaches the maximum. More presses than either can need, because the
+# starting fuel is asset data too; the extra ones are refused and change nothing.
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use fire_pit
+use piece_groundtorch
+use piece_groundtorch
+use piece_groundtorch
+use piece_groundtorch
+use piece_groundtorch
+use piece_groundtorch
+
+# Long enough for a tick on both, so each has been billed once before the clock moves. The
+# first bill of a fire is the one Vaka treats as an absence and caps, and a jump landing on it
+# would read as the cap rather than the light rule.
+wait 3
+
+# Full, before anything is burned. If the torch reads less than 6/6 here, pressing E on it did
+# not add resin - a torch that can be switched off toggles instead of filling when it is lit -
+# and nothing after this line means anything.
+hover fire_pit 10/10
+hover piece_groundtorch 6/6
+
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+daytime midday
+
+# Two ticks' worth, so both fires have billed the jump before they are read.
+wait 5
+
+# The ruler first. See the top of the file if this one fails.
+hover fire_pit 2/10
+
+# The rule. 4/6 is vanilla, 6/6 is dark or doubled twice.
+hover piece_groundtorch 5/6

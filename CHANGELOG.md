@@ -3,6 +3,35 @@
 Notable changes to Vaka. Format follows [Keep a Changelog](https://keepachangelog.com),
 and the mod uses [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+Fires that burn resin or coal last twice as long.
+
+### Added
+
+- `LightFuels` and `LightFuelMultiplier`. A fire whose fuel item is on the list burns each unit
+  that many times as long, whether you are at it or not. The defaults are `Resin, Coal` and
+  `2`, so a wall torch holds a resin for 11h 7m of world time instead of 5h 33m. Cooking fires
+  burn wood and are left alone.
+- A log line on every world load naming the fires the light rule applies to, grouped by fuel.
+  A fuel on the list that no fire burns is named too. With `Verbose` on there is also a list of
+  every fireplace in the game with its fuel and burn rate.
+
+### Changed
+
+- `Enabled` switches off both rules now, not only the absence cap.
+
+The rule reads each fire's fuel item rather than a list of pieces, so a modded torch that burns
+resin is covered as well. Which vanilla fires burn coal has not been checked yet, and the log
+line is where to look.
+
+It stacks with the cap in fuel. An absence still costs a torch at most one resin. The torch
+just has to be left twice as long before the bill gets there.
+
+Both settings are new, so an existing config picks up the defaults without editing. With
+Longhouse Core the host's values apply to everyone, like the cap's. A player without Vaka who
+owns a torch burns it at the vanilla rate for as long as they own it.
+
 ## [1.0.1] - 2026-09-12
 
 ### Changed
