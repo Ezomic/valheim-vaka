@@ -68,7 +68,7 @@ namespace Vaka
             // work of the whole rule. The request was "resin and coal last twice as long", and
             // the thing that separates a light from a cooking fire in this game is what it
             // burns: every cooking fire ripped from this install burns wood, and the torches
-            // and braziers burn resin. Reading m_fuelItem off each fire also means a torch
+            // and the standing brazier burn resin. Reading m_fuelItem off each fire also means a torch
             // another mod adds is covered the moment it burns resin, with nothing to update
             // here - the same reason MaxFuelPerAbsence is counted in fuel.
             //
@@ -84,9 +84,9 @@ namespace Vaka
                 "Fuel items whose fires burn longer, by prefab name, separated by commas. A "
                 + "fire counts when the item it burns is on this list, so the rule follows the "
                 + "fuel rather than the piece and covers torches added by other mods too. The "
-                + "defaults are the two fuels lights burn; cooking fires burn wood and are left "
-                + "alone, because a longer fuse on a campfire makes cooking cheaper and nobody "
-                + "asked for that. Every world load writes one line to the log naming the fires "
+                + "defaults are resin and coal. Cooking fires burn wood and are left alone, "
+                + "because a longer fuse on a campfire makes cooking cheaper and nobody asked "
+                + "for that. Every world load writes one line to the log naming the fires "
                 + "this reaches, and Verbose lists every fireplace with the name of its fuel, "
                 + "ready to copy here. Empty switches the rule off.");
 
