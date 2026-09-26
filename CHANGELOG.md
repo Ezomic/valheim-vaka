@@ -13,17 +13,24 @@ Fires that burn resin or coal last twice as long.
   that many times as long, whether you are at it or not. The defaults are `Resin, Coal` and
   `2`, so a wall torch holds a resin for 11h 7m of world time instead of 5h 33m. Cooking fires
   burn wood and are left alone.
-- A log line on every world load naming the fires the light rule applies to, grouped by fuel.
-  A fuel on the list that no fire burns is named too. With `Verbose` on there is also a list of
-  every fireplace in the game with its fuel and burn rate.
+- A log line each time you enter a world, naming the fires the light rule applies to, grouped
+  by fuel. A fuel on the list that no fire burns is named too. With `Verbose` on there is also
+  a list of every fireplace in the game with its fuel and burn rate. Every player gets the
+  line, whoever is standing at the fires. A dedicated server does not write it.
 
 ### Changed
 
 - `Enabled` switches off both rules now, not only the absence cap.
 
 The rule reads each fire's fuel item rather than a list of pieces, so a modded torch that burns
-resin is covered as well. Which vanilla fires burn coal has not been checked yet, and the log
-line is where to look.
+resin is covered as well. Which vanilla fires burn coal has not been checked yet, and neither
+has what the standing brazier and the blue and green torches burn. The log line is where to
+look.
+
+A cooking station or cauldron counts any fire with a burning area under it, not only a
+campfire. If the light rule reaches the standing brazier and the brazier has one, cooking over
+it would run on the longer fuse. Nobody has tried it. The log line names any fire where that
+could happen.
 
 It stacks with the cap in fuel. An absence still costs a torch at most one resin. The torch
 just has to be left twice as long before the bill gets there.

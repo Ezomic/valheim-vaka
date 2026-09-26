@@ -35,7 +35,19 @@ namespace Vaka
     /// half the fuel, on the live tick and on the catch-up alike. The argument above against a
     /// longer fuse was that it makes cooking cheaper while you stand at the fire, and it still
     /// holds, which is why this rule reads the fuel: cooking fires burn wood and never reach
-    /// it. Nobody cooks on a torch.
+    /// it, and nobody builds a spit over a torch.
+    ///
+    /// "Cooking fire" is not a kind of Fireplace, though, and that leaves one hole this rule
+    /// knowingly keeps open. A cooking station and a cauldron decide they have a fire by
+    /// asking <c>EffectArea.IsPointInsideArea(..., Type.Burning, ...)</c> at their check
+    /// points (<c>CookingStation.IsFireLit</c>, <c>CraftingStation.CheckFire</c>), never by
+    /// looking for a Fireplace, so anything carrying a Burning area heats them. The standing
+    /// brazier's rip has a <c>FireBurn</c> EffectArea under <c>_enabled_high</c>, the same
+    /// name and place as the campfire's own; the ground torch has a <c>FireArea</c>. A rip does
+    /// not print a child's area type, so which of those are Burning is unknown offline.
+    /// Excluding them on suspicion would put the one light that may burn coal back at vanilla
+    /// speed to guard against a spit nobody has built, so instead FireSurvey names every
+    /// stretched fire carrying a Burning area, and the running game answers it.
     ///
     /// One drain this deliberately does not cover. <c>Fire.Dot</c>, the spreading-fire
     /// component, calls <c>Fireplace.AddFuel(-m_fuelBurnAmount)</c> on its own one second
@@ -49,6 +61,15 @@ namespace Vaka
     {
         /// <summary>The private method this mod exists to adjust.</summary>
         private const string Target = "GetTimeSinceLastUpdate";
+
+        /// <summary>
+        /// Whether the patch actually went on. FireSurvey reads it, because the survey no
+        /// longer runs from inside the patch: when it did, a failed patch meant no survey, which
+        /// was right by accident. Now that it runs from the plugin's Update it has to be told,
+        /// or a game update that renamed the target would leave an error at load followed by a
+        /// cheerful "Light fuels last 2x as long" once a world opened.
+        /// </summary>
+        internal static bool Applied;
 
         /// <summary>
         /// Patched on its own, behind a check and a catch, because the target is a private
@@ -86,6 +107,7 @@ namespace Vaka
                 }
 
                 harmony.PatchAll(typeof(VakaPatches));
+                Applied = true;
             }
             catch (System.Exception e)
             {
@@ -253,11 +275,6 @@ namespace Vaka
             if (cap >= 0.0 && billed > cap) billed = cap;
 
             __result = billed;
-
-            // Once per world, off the first bill of the first fire, because this is the earliest
-            // moment that is certainly inside a loaded world with the host's settings applied
-            // and other mods' prefabs registered. See FireSurvey.
-            FireSurvey.Check();
 
             if (VakaConfig.Verbose.Value) Report(__instance, charged, factor, burned, billed);
         }

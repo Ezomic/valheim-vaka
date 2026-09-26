@@ -39,8 +39,16 @@
 # on a dark torch. 5/6 needs it to have burned, and to have burned at half the vanilla rate.
 #
 # The burn rates are the ones ripped from this install on 2026-08-30 and have not been re-read
-# since. Vaka's own log line on world load lists every fireplace's fuel and rate, and is the
-# place to check them if a number here looks wrong.
+# since. With Verbose on, the list Vaka writes when you enter a world gives every fireplace's
+# fuel and rate, and is the place to check them if a number here looks wrong.
+#
+# The fill lands on a whole 6 because the torch starts on a whole number. Refuelling adds 1 a
+# press and stops once the rounded-up fuel reaches the maximum, so a torch that started on a
+# fraction would stop short: one starting on 1.5 stops at 5.5, and then the correct rule and
+# the doubled one both read 5/6 at the end. The same rip gives m_startFuel 2 on piece_groundtorch and
+# 1 on fire_pit, so four presses take the torch from 2 to 6 less the few ten-thousandths burned
+# while pressing. If a game update changes a start fuel to a fraction, this file stops meaning
+# anything, and the 6/6 check below cannot see it happen.
 #
 # What it cannot cover, so that a pass is not read as more than it is:
 #

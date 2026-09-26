@@ -16,7 +16,7 @@ burns exactly what vanilla says.
 - Covers every piece that uses the vanilla `Fireplace` component, including fires added by
   other mods.
 - No new pieces, no keybinds, no UI, no new saved data. One Harmony postfix on one method.
-- A log line on every world load naming the fires the light rule applies to.
+- A log line each time you enter a world, naming the fires the light rule applies to.
 - Optional logging that reports what each catch-up was worth and what it was actually charged.
 
 ## How it works
@@ -52,14 +52,20 @@ The second rule is a longer fuse, and only for light. A fire whose fuel is on th
 and coal, twice as long. It applies all the time, at the fire and away from it.
 
 It stays off cooking fires for the reason the cap is a cap. A longer fuse on a campfire makes
-cooking cheaper, and nobody asked for that. Nobody cooks on a torch, so there it only means
-fewer rounds of the base with a stack of resin.
+cooking cheaper, and nobody asked for that. On a torch it only means fewer rounds of the base
+with a stack of resin.
+
+A cooking station or cauldron does not ask for a campfire. It looks for the burning area a
+campfire carries, and the standing brazier carries one under the same name. If the rule
+reaches a fire with that area and a cooking station fits over it, that spot cooks on the
+longer fuse. Nobody has tried it. The log line below names any fire the rule reaches that
+carries the area.
 
 The rule reads what a fire burns rather than which piece it is, so a torch from another mod
 that burns resin is covered without anything to update. Which pieces burn resin or coal is the
-game's own data, so Vaka reads it when a world loads and writes one line to the log naming
-the fires the rule applies to, grouped by fuel. A fuel on the list that nothing burns is
-named too, with "no fireplace in this world burns it".
+game's own data, so each time you enter a world Vaka writes one line to the log naming the
+fires the rule applies to, grouped by fuel. A fuel on the list that nothing burns is named
+too, with "no fireplace in this world burns it".
 
 The two rules stack. The cap is counted in fuel, so an absence still costs a torch at most one
 resin. The torch just has to be left alone twice as long before the bill gets there.
@@ -77,15 +83,19 @@ rates:
 | Hearth | `hearth` | 20 | 1h 23m | 27.8h |
 | Wood ground torch | `piece_groundtorch_wood` | 4 | 2h 47m | 11.1h |
 | Standing brazier | `piece_brazierfloor01` | 5 | 5h 33m | 27.8h |
-| Ground torch, blue and green variants | `piece_groundtorch`, `_blue`, `_green` | 6 | 5h 33m | 33.3h |
+| Ground torch | `piece_groundtorch` | 6 | 5h 33m | 33.3h |
+| Blue and green ground torches | `piece_groundtorch_blue`, `_green` | 6 | 5h 33m | 33.3h |
 | Wall torch | `piece_walltorch` | 6 | 5h 33m | 33.3h |
 
 Every column is populated world time, not wall clock. Cooking fires and the wood ground torch
-burn wood; the ground torch, wall torch and standing brazier burn resin.
+burn wood, and the ground torch and wall torch burn resin. What the standing brazier and the
+blue and green torches burn was not recorded when these numbers were taken, so that is left to
+the log line.
 
-With the light rule at its default, a fire burning resin or coal doubles both of its last two
-columns. A wall torch holds a resin for 11h 7m and a full one lasts about 67 hours. The log
-line on world load says which fires that is in your game.
+With the light rule at its default, a fire it reaches doubles both of its last two columns. A
+wall torch holds a resin for 11h 7m and a full one lasts about 67 hours. A fire burning
+anything not on the list keeps the numbers above. The log line when you enter a world says
+which fires the rule reaches in your game.
 
 In vanilla, cooking fires burn four times faster per fuel than torches do, which is why a base
 goes dark unevenly. A campfire is empty after about fourteen hours of other people playing, a
@@ -134,7 +144,7 @@ comment in the file.
 | `MaxFuelPerAbsence` | `[Vaka]` | `1` | How much fuel a fire may lose to a single absence, in the units the hover text counts. `0` makes an absence free. A large number restores vanilla. |
 | `LightFuels` | `[Vaka]` | `Resin, Coal` | Fuel items whose fires burn longer, by prefab name, separated by commas. Empty turns the light rule off. |
 | `LightFuelMultiplier` | `[Vaka]` | `2` | How many times longer each unit of a light fuel burns. `1` turns the light rule off. Anything below 1 counts as 1, so no fire ever burns faster than vanilla. |
-| `Verbose` | `[Diagnostics]` | `false` | One log line per fire every time one comes back from being unloaded, and on world load a list of every fireplace with its fuel and burn rate. See Checking that it works. |
+| `Verbose` | `[Diagnostics]` | `false` | One log line per fire every time one comes back from being unloaded, and each time you enter a world a list of every fireplace with its fuel and burn rate. See Checking that it works. |
 
 `MaxFuelPerAbsence` is counted in fuel units rather than seconds, so it means the same thing on
 a torch burning resin and a hearth burning wood, and on fires added by other mods. It is also
@@ -176,9 +186,12 @@ from removing the cap for everyone, or from burning your torches at the vanilla 
 Hover text draws fuel rounded up to a whole unit, so a fire that quietly lost a third of a log
 reads the same as one that lost nothing, and both read the same as a mod that never loaded.
 
-For the light rule, read the line Vaka writes to `BepInEx/LogOutput.log` when the first fire
-near you loads in a world. It starts with "Light fuels last 2x as long" and names every fire
-the rule applies to, grouped by fuel. If the rule is off, the line says so and why.
+For the light rule, read the line Vaka writes to `BepInEx/LogOutput.log` when your character
+appears in a world. It starts with "Light fuels last 2x as long" and names every fire the rule
+applies to, grouped by fuel. If the rule is off, the line says so and why. On a server it
+already reflects the host's settings. It is written again if a light setting changes while you
+play, whether the host changed it or you did through a config manager. A dedicated server
+never writes it, because it has no character of its own.
 
 Set `Verbose = true`. Every catch-up writes one line to `BepInEx/LogOutput.log` naming the
 fire, how long it was away, what that was worth in fuel and what it was charged, including the
@@ -238,8 +251,11 @@ torch burning resin under the light rule. Under that, the bill is already less t
 allows.
 
 **A torch still burns at the vanilla rate.** The light rule goes by fuel, not by piece. Check
-the world-load log line: a torch missing from it burns something that is not on `LightFuels`.
-Turn on `Verbose` to see what it burns, and add that name to the list if you want it covered.
+the log line from when you entered the world: a torch missing from it burns something that is
+not on `LightFuels`. Turn on `Verbose` to see what it burns. Switched on in game through a
+config manager, the full list is written straight away. Set in the cfg file, it appears the
+next time you start the game and enter a world. Add that name to `LightFuels` if you want it
+covered.
 
 ## Bug reports
 

@@ -67,26 +67,31 @@ namespace Vaka
             // Keyed on the fuel item rather than on a list of pieces, and that is doing the
             // work of the whole rule. The request was "resin and coal last twice as long", and
             // the thing that separates a light from a cooking fire in this game is what it
-            // burns: every cooking fire ripped from this install burns wood, and the torches
-            // and the standing brazier burn resin. Reading m_fuelItem off each fire also means a torch
-            // another mod adds is covered the moment it burns resin, with nothing to update
-            // here - the same reason MaxFuelPerAbsence is counted in fuel.
+            // burns: the cooking fires burn wood, and the wall torch and iron ground torch burn
+            // resin. Reading m_fuelItem off each fire also means a torch another mod adds is
+            // covered the moment it burns resin, with nothing to update here - the same reason
+            // MaxFuelPerAbsence is counted in fuel.
             //
             // Prefab names, because that is what m_fuelItem points at and what a person can
             // copy out of the log: the Verbose survey prints every fireplace's fuel by exactly
             // this name. Matched without regard to case, since "resin" in a config file is
             // plainly meant to be Resin and no two vanilla items differ only by case.
             //
-            // Which fires burn Coal is asset data and was never ripped. The survey logged on
-            // every world load answers it on the machine in front of you, so the default names
-            // Coal without claiming anything about which pieces that reaches.
+            // What any fire burns is asset data, and the 2026-08-30 rips do not record it: a
+            // rip prints the simple fields on a prefab's root, and m_fuelItem is a reference.
+            // Their rates and capacities are ripped; their fuels are not. So which pieces Coal
+            // reaches, and whether the standing brazier and the blue and green torches are on
+            // resin at all, is for the survey to say on the machine in front of you. The
+            // brazier's rip does model its bed as six lumps wearing glowing_coal, which is a
+            // hint and not an answer. The default names Coal because Robbin asked for it, not
+            // because anything here knows which piece burns it.
             LightFuels = config.Bind("Vaka", "LightFuels", "Resin, Coal",
                 "Fuel items whose fires burn longer, by prefab name, separated by commas. A "
                 + "fire counts when the item it burns is on this list, so the rule follows the "
                 + "fuel rather than the piece and covers torches added by other mods too. The "
                 + "defaults are resin and coal. Cooking fires burn wood and are left alone, "
                 + "because a longer fuse on a campfire makes cooking cheaper and nobody asked "
-                + "for that. Every world load writes one line to the log naming the fires "
+                + "for that. Each time you enter a world, one line in the log names the fires "
                 + "this reaches, and Verbose lists every fireplace with the name of its fuel, "
                 + "ready to copy here. Empty switches the rule off.");
 
@@ -120,9 +125,10 @@ namespace Vaka
                 + "nothing, and both look identical to a mod that never loaded. Quiet while "
                 + "you are near a fire, because a live update is two seconds and is never "
                 + "reported, but a base with thirty torches writes thirty lines the moment you "
-                + "walk into it. Also lists, once per world, every fireplace in the game with "
-                + "the fuel it burns, its seconds per fuel and whether the light rule applies "
-                + "to it.");
+                + "walk into it. Also lists every fireplace in the game with the fuel it burns, "
+                + "its seconds per fuel and whether the light rule applies to it, once each "
+                + "time you enter a world, and straight away if this is switched on in game "
+                + "through a config manager.");
         }
 
         /// <summary>
@@ -213,18 +219,6 @@ namespace Vaka
         {
             Parsed();
             return _parsedOrder;
-        }
-
-        /// <summary>
-        /// Everything the light rule depends on, as one string. The survey keys on it so that a
-        /// host's values arriving, or a live edit, re-writes the list of affected fires rather
-        /// than leaving a log line that describes settings no longer in force.
-        /// </summary>
-        internal static string LightSignature()
-        {
-            return Enabled.Value + "|"
-                   + LightFuelMultiplier.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-                   + "|" + (LightFuels.Value ?? "");
         }
 
         private static string _parsedFrom;

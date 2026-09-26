@@ -10,8 +10,9 @@ namespace Vaka
     /// Which fires the light rule reaches, written to the log once per world.
     ///
     /// The rule is keyed on a fire's fuel item, and which fire burns what is asset data: it
-    /// lives in the prefabs, not in any code ilspycmd can show. The torch and brazier numbers
-    /// were ripped from this install on 2026-08-30, and which fires burn coal never was. So the
+    /// lives in the prefabs, not in any code ilspycmd can show. The fires' rates and capacities
+    /// were ripped from this install on 2026-08-30, but a rip prints only the simple fields on
+    /// a prefab's root and m_fuelItem is a reference, so their fuels never were. So the
     /// honest source for "what does LightFuels actually touch" is the running game, asked at
     /// the moment it matters, and this is that question written down. It is also the only way
     /// a player can see the rule is on: the hover text shows fuel, never a burn rate, and a
@@ -23,15 +24,34 @@ namespace Vaka
     /// fireplace in the game with its fuel, its seconds per fuel and what the rule made of it,
     /// which is where a name for LightFuels gets copied from.
     ///
-    /// Run off the first bill of the first fire rather than from ZNetScene.Awake. Awake is
-    /// before other mods have registered their prefabs - they do it from Update, retrying until
-    /// ZNetScene exists - and before a client has been handed the host's settings. The first
-    /// bill is after both, and it costs no second patch.
+    /// Run from the plugin's Update, once this machine has a local player in a loaded world.
+    /// That moment is after everything the list depends on. Other mods register their prefabs
+    /// from Update, retrying until ZNetScene exists, and the player is only spawned once the
+    /// area around it is ready, which is many frames after that. Core hands a client the host's
+    /// settings from the server's RPC_PeerInfo, in the connection handshake, long before the
+    /// character spawns - and if a host pushes again later, the settings check below catches
+    /// that too.
     ///
-    /// Keyed on the scene and on the settings together. A new ZNetScene is a new world, and
-    /// the settings changing under a loaded one - Core applying a host's values, or somebody
-    /// editing the cfg live - would otherwise leave a log line describing a rule no longer in
-    /// force. That second case re-surveys on the next fire to load, not instantly.
+    /// It used to run off the first bill of the first fire, and that was wrong in a way the
+    /// README then repeated. A fire is billed only by the machine that owns it -
+    /// UpdateFireplace calls GetTimeSinceLastUpdate inside <c>m_nview.IsOwner()</c> - and
+    /// ZDOMan.ReleaseNearbyZDOS leaves a fire with its owner for as long as that player's
+    /// active area covers it. So a player who walked into a base where somebody else was
+    /// already standing never billed a fire, never got the line, and was told by the README
+    /// that its absence meant the rule was off. A new world with nothing built yet had the
+    /// same hole. The local player has no such gate: every player's game has one.
+    ///
+    /// A dedicated server has no local player, so it never writes the line. It never bills a
+    /// player-built fire either (see VakaPlugin), so there is nothing there for the line to
+    /// describe.
+    ///
+    /// Keyed on the scene and on the rule's settings together. A new ZNetScene is a new world,
+    /// and the settings changing under a loaded one - Core applying a host's values, a config
+    /// manager, or Devkit's reload button re-reading the file - would otherwise leave a log
+    /// line describing a rule no longer in force. Both re-survey on the next frame. Verbose is
+    /// watched separately: switching it on in a loaded world prints the table then and there,
+    /// rather than promising one at the next login. A hand edit to the cfg file reaches none
+    /// of this until something re-reads the file, because BepInEx 5 does not watch it.
     /// </summary>
     internal static class FireSurvey
     {
@@ -42,24 +62,82 @@ namespace Vaka
         /// </summary>
         private static ZNetScene _scene;
 
-        private static string _signature;
+        // The settings the last survey was written against, held as the values themselves
+        // rather than as one string built from them. This is read every frame, and building a
+        // signature string every frame would be an allocation per frame for the life of the
+        // process, to answer a question whose answer is "no change" almost every time.
+        private static bool _enabled;
+        private static float _multiplier;
+        private static string _fuels;
 
-        internal static void Check()
+        /// <summary>Whether the Verbose table has been printed for the current survey.</summary>
+        private static bool _tabled;
+
+        /// <summary>The rows of the current survey, kept so Verbose can print them late.</summary>
+        private static List<Row> _rows;
+
+        /// <summary>
+        /// Called from the plugin's Update. Cheap on the frames it does nothing, which is all
+        /// but a handful per session: two static reads, four config reads and a string compare.
+        /// </summary>
+        internal static void Tick()
         {
+            // Nothing to describe when the patch never went on. The load error already says so,
+            // and a line claiming lights last twice as long after it would contradict it.
+            if (!VakaPatches.Applied) return;
+
             ZNetScene scene = ZNetScene.instance;
             if (scene == null) return;
 
-            string signature = VakaConfig.LightSignature();
-            if (scene == _scene && signature == _signature) return;
+            // Plain ==, because Unity's overload is what treats a destroyed player as null. This
+            // is also what keeps the survey off a dedicated server, which never has one.
+            if (Player.m_localPlayer == null) return;
 
+            bool enabled = VakaConfig.Enabled.Value;
+            float multiplier = VakaConfig.LightFuelMultiplier.Value;
+            string fuels = VakaConfig.LightFuels.Value ?? "";
+            bool verbose = VakaConfig.Verbose.Value;
+
+            // float.Equals rather than ==, and it matters here more than anywhere else in the
+            // mod. NaN == NaN is false, so a cfg hand-edited to NaN would read as "changed" on
+            // every frame and write the survey sixty times a second. Equals calls two NaNs
+            // equal.
+            bool same = scene == _scene && enabled == _enabled
+                        && multiplier.Equals(_multiplier) && fuels == _fuels;
+
+            if (same)
+            {
+                if (!verbose || _tabled) return;
+
+                // Verbose switched on under a world already surveyed: the table alone, since
+                // the one-line summary above it in the log is still true.
+                _tabled = true;
+                Guarded(() => VakaPlugin.Log.LogInfo(Table(_rows)));
+                return;
+            }
+
+            // State first, write second. If Write throws, the next frame sees nothing changed
+            // and does not try again, so a broken survey costs one warning rather than one per
+            // frame.
             _scene = scene;
-            _signature = signature;
+            _enabled = enabled;
+            _multiplier = multiplier;
+            _fuels = fuels;
+            _tabled = verbose;
+            _rows = new List<Row>();
 
-            // Caught whole. This runs inside the fuel postfix, and a survey that threw there
-            // would cost the bill it was called from - a diagnostic taking the feature down.
+            Guarded(() => Write(scene, verbose));
+        }
+
+        /// <summary>
+        /// Caught whole. The survey is a diagnostic running inside the plugin's Update, and an
+        /// exception out of it would repeat on every frame and bury the log it exists to help.
+        /// </summary>
+        private static void Guarded(Action write)
+        {
             try
             {
-                Write(scene);
+                write();
             }
             catch (Exception e)
             {
@@ -75,6 +153,14 @@ namespace Vaka
             public bool Infinite;
             public double Factor;
 
+            /// <summary>
+            /// Whether the prefab carries an EffectArea marked Burning anywhere under it, which
+            /// is what a cooking station and a cauldron look for when they decide whether they
+            /// stand over a fire. See the VakaPatches summary for why this is reported and not
+            /// acted on.
+            /// </summary>
+            public bool Cooks;
+
             /// <summary>Whether the rule changes anything about this fire.</summary>
             public bool Stretched
             {
@@ -82,9 +168,9 @@ namespace Vaka
             }
         }
 
-        private static void Write(ZNetScene scene)
+        private static void Write(ZNetScene scene, bool verbose)
         {
-            List<Row> rows = new List<Row>();
+            List<Row> rows = _rows;
 
             foreach (GameObject prefab in Prefabs(scene))
             {
@@ -102,7 +188,8 @@ namespace Vaka
                     Fuel = fuel,
                     Rate = fire.m_secPerFuel,
                     Infinite = fire.m_infiniteFuel,
-                    Factor = VakaConfig.LightFactor(fuel)
+                    Factor = VakaConfig.LightFactor(fuel),
+                    Cooks = HasBurningArea(prefab)
                 });
             }
 
@@ -110,7 +197,28 @@ namespace Vaka
 
             VakaPlugin.Log.LogInfo(Summary(rows));
 
-            if (VakaConfig.Verbose.Value) VakaPlugin.Log.LogInfo(Table(rows));
+            if (verbose) VakaPlugin.Log.LogInfo(Table(rows));
+        }
+
+        /// <summary>
+        /// Whether anything under this prefab is an EffectArea with the Burning flag.
+        ///
+        /// Inactive children included, and they have to be: the warmth and burn areas of a fire
+        /// sit under <c>_enabled_high</c> on the campfire and the brazier and under
+        /// <c>_enabled</c> on the torches, which the Fireplace switches on only while it is
+        /// lit, so a prefab read at rest may well have them off. m_type is a
+        /// flags enum - FireBurn on a campfire is expected to be Burning alongside something
+        /// else - so this tests the bit, not equality.
+        /// </summary>
+        private static bool HasBurningArea(GameObject prefab)
+        {
+            foreach (EffectArea area in prefab.GetComponentsInChildren<EffectArea>(true))
+            {
+                if (area == null) continue;
+                if ((area.m_type & EffectArea.Type.Burning) != 0) return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -149,6 +257,19 @@ namespace Vaka
                     ? "no fireplace in this world burns it."
                     : string.Join(", ", names.ToArray()) + ".");
             }
+
+            // The one open question the rule leaves: a stretched fire a cooking station would
+            // accept as its fire cooks on the stretched fuel. Named here rather than only in
+            // the Verbose table, because it is a design question for whoever reads the log and
+            // one run answers it.
+            List<string> cooks = new List<string>();
+
+            foreach (Row row in rows)
+                if (row.Stretched && row.Cooks) cooks.Add(row.Name);
+
+            if (cooks.Count > 0)
+                text.Append(" A cooking station or cauldron placed over these counts them as a fire: ")
+                    .Append(string.Join(", ", cooks.ToArray())).Append('.');
 
             return text.ToString();
         }
@@ -189,6 +310,8 @@ namespace Vaka
                 {
                     text.Append(row.Rate.ToString("0")).Append("s a fuel, untouched");
                 }
+
+                if (row.Cooks) text.Append(", can heat a cooking station");
             }
 
             return text.ToString();

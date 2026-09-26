@@ -35,8 +35,9 @@ namespace Vaka
     /// fuel item is on LightFuels (resin and coal by default) burns each unit
     /// LightFuelMultiplier times as long, present or absent. The case against a longer fuse was
     /// that it makes cooking cheaper while you stand at the fire; cooking fires burn wood, and
-    /// nobody cooks on a torch. It rides the same postfix as the cap - see VakaPatches for why
-    /// that is the right seam rather than rewriting each fire's m_secPerFuel.
+    /// nobody cooks over a torch. A standing brazier is less certain, and VakaPatches says why.
+    /// It rides the same postfix as the cap - see VakaPatches for why that is the right seam
+    /// rather than rewriting each fire's m_secPerFuel.
     ///
     /// Client-side is the wrong word for it, and the reason is worth writing down. Every
     /// decision here is made off state the machine already has, with nothing new on the wire -
@@ -109,6 +110,19 @@ namespace Vaka
             // The startup line every mod in the suite writes. It is how a log answers "which
             // build of what is actually loaded" without anyone guessing.
             Log.LogInfo(PluginName + " " + PluginVersion + " by " + PluginAuthor + " - ready.");
+        }
+
+        /// <summary>
+        /// The light rule's log line, polled rather than hooked. There is no single moment
+        /// that means "a world is loaded, other mods' fires are registered and the host's
+        /// settings have arrived", so FireSurvey watches for the local player and for the
+        /// rule's settings changing, and does nothing on every other frame. It used to ride the
+        /// fuel postfix, which only runs on the machine that owns a fire - see FireSurvey for
+        /// the player who never got the line because of that.
+        /// </summary>
+        private void Update()
+        {
+            FireSurvey.Tick();
         }
 
         /// <summary>
