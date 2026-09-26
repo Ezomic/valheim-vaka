@@ -26,8 +26,17 @@ namespace Vaka
     ///
     /// It is deliberately not an auto-feeder and not an infinite fire. One unit off the top is
     /// a real price, a fire left nearly empty still goes out, and every second you spend in
-    /// front of one is charged exactly what vanilla charges. Bank your fires before you log
-    /// off and they will be lit when you get back; leave them guttering and they will not.
+    /// front of a cooking fire is charged exactly what vanilla charges. Bank your fires before
+    /// you log off and they will be lit when you get back; leave them guttering and they will
+    /// not.
+    ///
+    /// The second rule, added on 2026-09-26 at Robbin's request, is the longer fuse argued
+    /// against above - kept to lights, where that argument has nothing to bite on. A fire whose
+    /// fuel item is on LightFuels (resin and coal by default) burns each unit
+    /// LightFuelMultiplier times as long, present or absent. The case against a longer fuse was
+    /// that it makes cooking cheaper while you stand at the fire; cooking fires burn wood, and
+    /// nobody cooks on a torch. It rides the same postfix as the cap - see VakaPatches for why
+    /// that is the right seam rather than rewriting each fire's m_secPerFuel.
     ///
     /// Client-side is the wrong word for it, and the reason is worth writing down. Every
     /// decision here is made off state the machine already has, with nothing new on the wire -
@@ -149,7 +158,14 @@ namespace Vaka
             // kill switch, and saying out loud that the host owns both is the point of putting
             // Vaka on a server at all. A guest running a cap of 50 would be playing with
             // fires that never go out on somebody else's world.
-            Suite.Sync(VakaConfig.Enabled, VakaConfig.MaxFuelPerAbsence);
+            //
+            // The light rule's two entries are balance in exactly the same sense, and for the
+            // same ownership reason the cap is: a torch burns at whatever rate its current
+            // owner's plugin says, and ownership moves every two seconds. A guest with a
+            // multiplier of 10 would keep everyone's torches lit while standing near them, and
+            // the torches would go back to burning at the host's rate the moment they left.
+            Suite.Sync(VakaConfig.Enabled, VakaConfig.MaxFuelPerAbsence,
+                       VakaConfig.LightFuels, VakaConfig.LightFuelMultiplier);
 
             // Opting the diagnostic back out. A host reaching across to switch on someone's
             // logging for the evening is not a thing anybody asked for, and a log line cannot
