@@ -6,8 +6,10 @@
 # campfire has to lose what vanilla takes for 400 seconds of wood. The torch has to lose half of
 # what vanilla takes for 400 seconds of resin.
 #
-# NEEDS: singleplayer, on a test world. Stand in the open on land, clear of trees and water, and
-# face open ground. Nothing to carry. Vaka's light settings at their defaults (Enabled true,
+# NEEDS: singleplayer, on a test world. Stand on land, clear of water. The open ground and the
+# open sky over the fires come from Devkit's stage before the first step, which takes down the
+# pieces, trees and rocks within 34m and levels the ground, but it cannot move you out of the
+# water. Nothing to carry. Vaka's light settings at their defaults (Enabled true,
 # LightFuelMultiplier 2, Resin in LightFuels), which is what a cfg first written by this build
 # holds.
 #
@@ -16,7 +18,9 @@
 #   - The world clock 400 seconds further on. That is under seven minutes of world time, well
 #     short of half a day, but Devkit only moves the clock forward and it cannot be undone. Run
 #     late in the evening it can tick the day count over by one.
-#   - Nothing built within 8m. `wipe 8` takes down every piece there, not only this file's.
+#   - Nothing built, and none of the world's trees or rocks, within 34m: Devkit's stage takes
+#     them down for good before the first step. `wipe 8` then takes down every piece within 8m, not
+#     only this file's, for when that stage is switched off.
 #   - A lit campfire and a lit iron torch three to four metres ahead. They burn down on their
 #     own, and the next run's wipe takes them.
 #
