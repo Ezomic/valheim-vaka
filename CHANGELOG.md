@@ -3,7 +3,7 @@
 Notable changes to Vaka. Format follows [Keep a Changelog](https://keepachangelog.com),
 and the mod uses [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [1.1.0] - 2026-09-30
 
 Fires that burn resin or coal last twice as long.
 
@@ -23,14 +23,16 @@ Fires that burn resin or coal last twice as long.
 - `Enabled` switches off both rules now, not only the absence cap.
 
 The rule reads each fire's fuel item rather than a list of pieces, so a modded torch that burns
-resin is covered as well. Which vanilla fires burn coal has not been checked yet, and neither
-has what the standing brazier and the blue and green torches burn. The log line is where to
-look.
+resin is covered as well. In the game as it stands, the log line puts the wall torch, the
+ground torch and the wood ground torch on resin, along with `Candle_resin`,
+`piece_snowlantern`, `piece_jackoturnip` and `CastleKit_groundtorch_unlit`. The standing and
+hanging braziers are on coal. The blue and green torches burn neither and keep their vanilla
+rate. The 1.0 README said the wood
+ground torch burns wood. It does not.
 
 A cooking station or cauldron counts any fire with a burning area under it, not only a
-campfire. If the light rule reaches the standing brazier and the brazier has one, cooking over
-it would run on the longer fuse. Nobody has tried it. The log line names any fire where that
-could happen.
+campfire. Both braziers carry one, so cooking over a brazier would run on the longer fuse.
+Nobody has tried it. The log line names every fire where that could happen.
 
 It stacks with the cap in fuel. An absence still costs a torch at most one resin. The torch
 just has to be left twice as long before the bill gets there.
