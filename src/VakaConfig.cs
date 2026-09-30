@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using BepInEx.Configuration;
 
 namespace Vaka
@@ -17,15 +19,26 @@ namespace Vaka
     {
         public static ConfigEntry<bool> Enabled;
         public static ConfigEntry<float> MaxFuelPerAbsence;
+        public static ConfigEntry<string> LightFuels;
+        public static ConfigEntry<float> LightFuelMultiplier;
 
         public static ConfigEntry<bool> Verbose;
 
         public static void Bind(ConfigFile config)
         {
+            // The kill switch for both rules, not only the cap it was written for. A setting
+            // called Enabled that left half the mod running when it was off would be read as
+            // broken by anybody who did not also read its description, and the README's
+            // conclusive test uses it as the vanilla arm: with it off the torch has to burn
+            // the way the game burns it, which it would not if the light rule survived.
+            //
+            // Same key and same default as 1.0, so no cfg needs editing. Only the text around
+            // it changed, and BepInEx rewrites descriptions from code the next time it saves.
             Enabled = config.Bind("Vaka", "Enabled", true,
-                "Whether the cap applies at all. Off leaves the plugin loaded and charging "
-                + "vanilla's full bill for every absence, which is the behaviour this mod "
-                + "exists to change - so off is only useful for telling the two apart without "
+                "Whether Vaka does anything at all. Off leaves the plugin loaded with both of "
+                + "its rules switched off: every absence is charged vanilla's full bill and "
+                + "every fuel burns at vanilla's rate, which is the behaviour this mod exists "
+                + "to change - so off is only useful for telling the two apart without "
                 + "uninstalling.");
 
             // Fuel units rather than seconds, and that choice is doing real work. Every kind of
@@ -51,6 +64,56 @@ namespace Vaka
                 + "was there or not. A fire that was nearly empty when you left still goes out "
                 + "- the cap limits what an absence costs, it does not conjure fuel.");
 
+            // Keyed on the fuel item rather than on a list of pieces, and that is doing the
+            // work of the whole rule. The request was "resin and coal last twice as long", and
+            // the thing that separates a light from a cooking fire in this game is what it
+            // burns: the cooking fires burn wood, and the wall torch and iron ground torch burn
+            // resin. Reading m_fuelItem off each fire also means a torch another mod adds is
+            // covered the moment it burns resin, with nothing to update here - the same reason
+            // MaxFuelPerAbsence is counted in fuel.
+            //
+            // Prefab names, because that is what m_fuelItem points at and what a person can
+            // copy out of the log: the Verbose survey prints every fireplace's fuel by exactly
+            // this name. Matched without regard to case, since "resin" in a config file is
+            // plainly meant to be Resin and no two vanilla items differ only by case.
+            //
+            // What any fire burns is asset data, and the 2026-08-30 rips do not record it: a
+            // rip prints the simple fields on a prefab's root, and m_fuelItem is a reference.
+            // Their rates and capacities are ripped; their fuels are not. So which pieces Coal
+            // reaches, and whether the standing brazier and the blue and green torches are on
+            // resin at all, is for the survey to say on the machine in front of you. The
+            // brazier's rip does model its bed as six lumps wearing glowing_coal, which is a
+            // hint and not an answer. The default names Coal because Robbin asked for it, not
+            // because anything here knows which piece burns it.
+            LightFuels = config.Bind("Vaka", "LightFuels", "Resin, Coal",
+                "Fuel items whose fires burn longer, by prefab name, separated by commas. A "
+                + "fire counts when the item it burns is on this list, so the rule follows the "
+                + "fuel rather than the piece and covers torches added by other mods too. The "
+                + "defaults are resin and coal. Cooking fires burn wood and are left alone, "
+                + "because a longer fuse on a campfire makes cooking cheaper and nobody asked "
+                + "for that. Each time you enter a world, one line in the log names the fires "
+                + "this reaches, and Verbose lists every fireplace with the name of its fuel, "
+                + "ready to copy here. Empty switches the rule off.");
+
+            // A multiplier on the fire's own rate, so every fire keeps its own proportions -
+            // a wall torch still outlasts a brazier by the same margin, just further out.
+            // One number in seconds would have given every light the same fuse, which is the
+            // mistake MaxFuelPerAbsence's comment walks through.
+            //
+            // Floored at 1 in LightFactor rather than with an AcceptableValueRange. Below 1 is
+            // "burn faster than vanilla", which is not a thing this mod does anywhere - the
+            // postfix it runs in only ever reduces a bill, and that is what makes ownership
+            // bouncing between clients safe. Handled in code rather than by the range so a
+            // hand-edited NaN meets the same refusal CapSeconds gives it.
+            LightFuelMultiplier = config.Bind("Vaka", "LightFuelMultiplier", 2f,
+                "How many times longer each unit of a light fuel burns. 2 makes a torch that "
+                + "held a resin for five and a half hours of world time hold it for eleven. It "
+                + "applies whether you are at the fire or away from it, and it stacks with "
+                + "MaxFuelPerAbsence in the obvious way: an absence still costs at most that "
+                + "much fuel, it just takes longer to get there. 1 switches the rule off. "
+                + "Anything below 1 is treated as 1, because Vaka never makes a fire burn "
+                + "faster than vanilla.");
+
             // Not synced by intent - see the plugin. A diagnostic flag is personal, and a host
             // turning on someone else's logging is not a thing anybody asked for.
             Verbose = config.Bind("Diagnostics", "Verbose", false,
@@ -62,7 +125,10 @@ namespace Vaka
                 + "nothing, and both look identical to a mod that never loaded. Quiet while "
                 + "you are near a fire, because a live update is two seconds and is never "
                 + "reported, but a base with thirty torches writes thirty lines the moment you "
-                + "walk into it.");
+                + "walk into it. Also lists every fireplace in the game with the fuel it burns, "
+                + "its seconds per fuel and whether the light rule applies to it, once each "
+                + "time you enter a world, and straight away if this is switched on in game "
+                + "through a config manager.");
         }
 
         /// <summary>
@@ -100,6 +166,91 @@ namespace Vaka
             if (fuel < 0f) fuel = 0f;
 
             return (double)secondsPerFuel * fuel;
+        }
+
+        /// <summary>
+        /// How many times longer a unit of this fuel lasts, or exactly 1 when the light rule
+        /// does not apply to it.
+        ///
+        /// Read from the entries on every call, for the reason CapSeconds gives: Core swaps a
+        /// host's values in on connect and back out on disconnect, so anything remembered from
+        /// load is stale the first time somebody joins a server. The list is the one part that
+        /// costs anything to read, and it is re-parsed only when its text changes.
+        ///
+        /// Never below 1, and 1 for anything that is not a finite number. NaN is the same trap
+        /// CapSeconds documents - it would divide through to a NaN bill, and a NaN written into
+        /// s_fuel kills a fire for good - and infinity would divide every bill down to zero,
+        /// which is "never burns" arrived at by accident rather than asked for.
+        /// </summary>
+        internal static double LightFactor(string fuelPrefab)
+        {
+            if (!Enabled.Value) return 1.0;
+            if (string.IsNullOrEmpty(fuelPrefab)) return 1.0;
+
+            float factor = LightFuelMultiplier.Value;
+            if (float.IsNaN(factor) || float.IsInfinity(factor) || factor <= 1f) return 1.0;
+
+            return Parsed().Contains(fuelPrefab) ? factor : 1.0;
+        }
+
+        /// <summary>
+        /// Why the light rule is doing nothing at all, in the words of the cfg, or null when it
+        /// is on. The same three tests LightFactor makes, kept beside it so the log's reason and
+        /// the rule's behaviour cannot drift apart.
+        /// </summary>
+        internal static string LightRuleOffBecause()
+        {
+            if (!Enabled.Value) return "Enabled is false, so Vaka is off entirely";
+
+            float factor = LightFuelMultiplier.Value;
+            if (float.IsNaN(factor) || float.IsInfinity(factor) || factor <= 1f)
+                return "LightFuelMultiplier is " + factor + ", and only a number above 1 stretches anything";
+
+            if (LightFuelNames().Count == 0) return "LightFuels is empty";
+
+            return null;
+        }
+
+        /// <summary>
+        /// The configured fuel names, in the order they were written, for the survey to report
+        /// against. Order kept so the log line reads back in the same order as the cfg.
+        /// </summary>
+        internal static IList<string> LightFuelNames()
+        {
+            Parsed();
+            return _parsedOrder;
+        }
+
+        private static string _parsedFrom;
+
+        private static readonly HashSet<string> _parsed =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly List<string> _parsedOrder = new List<string>();
+
+        /// <summary>
+        /// The list, split once per distinct value of the entry. Commas and semicolons both
+        /// separate, since a hand-edited list in a config file gets whichever the person's
+        /// fingers reach for, and no prefab name contains either.
+        /// </summary>
+        private static HashSet<string> Parsed()
+        {
+            string raw = LightFuels.Value ?? "";
+            if (_parsedFrom != null && raw == _parsedFrom) return _parsed;
+
+            _parsed.Clear();
+            _parsedOrder.Clear();
+
+            foreach (string part in raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string name = part.Trim();
+                if (name.Length == 0) continue;
+
+                if (_parsed.Add(name)) _parsedOrder.Add(name);
+            }
+
+            _parsedFrom = raw;
+            return _parsed;
         }
     }
 }

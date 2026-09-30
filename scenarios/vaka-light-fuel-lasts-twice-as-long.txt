@@ -1,0 +1,103 @@
+# Vaka: a torch burning resin holds each unit twice as long, and a campfire burning wood does not.
+#
+# WHAT IT PROVES. A campfire and a standing iron torch go down with the fuel they come with,
+# and the world clock jumps 400 seconds while you stand beside them. A fire that is loaded pays
+# for the whole jump on its next two-second tick, so both are billed the full 400 seconds. The
+# campfire has to lose what vanilla takes for 400 seconds of wood. The torch has to lose half of
+# what vanilla takes for 400 seconds of resin.
+#
+# NEEDS: singleplayer, on a test world. Stand on land, clear of water. The open ground and the
+# open sky over the fires come from Devkit's stage before the first step, which takes down the
+# pieces, trees and rocks within 34m and levels the ground, but it cannot move you out of the
+# water. Nothing to carry. Vaka's light settings at their defaults (Enabled true,
+# LightFuelMultiplier 2, Resin in LightFuels), which is what a cfg first written by this build
+# holds.
+#
+# LEAVES BEHIND:
+#
+#   - The world clock 400 seconds further on. That is under seven minutes of world time, well
+#     short of half a day, but Devkit only moves the clock forward and it cannot be undone. Run
+#     late in the evening it can tick the day count over by one.
+#   - Nothing built, and none of the world's trees or rocks, within 34m: Devkit's stage takes
+#     them down for good before the first step. `wipe 8` then takes down every piece within 8m, not
+#     only this file's, for when that stage is switched off.
+#   - A lit campfire and a lit iron torch three to four metres ahead. They burn down on their
+#     own, and the next run's wipe takes them.
+#
+# THE NUMBERS come from devkit rips of this install, fire_pit on 2026-08-30 and piece_groundtorch
+# on 2026-08-20. The game has updated since and they have not been re-read.
+#
+#   fire_pit            wood     5000s a fuel, starts on 1
+#   piece_groundtorch   resin   20000s a fuel, starts on 2, so 40000s with the rule
+#
+# What a fire is billed is the 400 seconds plus the real seconds between placing it and reading
+# it, which is a few. Every window below accepts a bill anywhere from 360 to 480 seconds: up to 80
+# over for a slow run, and 40 under as slack for float rounding, because the bill cannot really
+# come in under 400. So each window is the start fuel less 480 seconds and less 360 seconds at
+# that fire's rate.
+#
+#                                   campfire   torch
+#   Vaka working                    0.920      1.990
+#   no light rule                   0.920      1.980    vanilla, or Vaka not running
+#   rule only on catch-ups          0.920      1.980
+#   rule applied twice              0.920      1.995
+#   rule reaching wood as well      0.960      1.990
+#   a fire that is not burning      1.000      2.000
+#
+#   window in this file             0.904 to 0.928    1.988 to 1.991
+#
+# Nearest miss is the doubled rule, 0.003 of a resin above the torch window. That is 120 seconds
+# of burning at the rule's rate, against a run that takes a few.
+#
+# THE CAMPFIRE IS THE RULER. It burns wood, which the rule never touches, so it shows the jump
+# reached a fire in full and was charged at vanilla's rate. If the campfire line fails, the torch
+# line after it says nothing about the mod. The `clock` note says how far the clock really moved,
+# and the `fuel` note says whether the fire was burning or out.
+#
+# THE JUMP LANDS ON A LIVE TICK, on purpose. Robbin asked for resin to last twice as long, not
+# only while nobody is there, and a build that stretched only the bill after an absence would
+# read 1.980 on the torch here. The two fuel lines before the jump make sure of it. `fuel` waits
+# until a fire has been billed at least once, and a placed fire's first bill is the one Vaka
+# counts as the end of an absence. Every bill after that is a live tick.
+#
+# NOTHING IS REFUELLED. The start fuels last well past 400 seconds, and pressing E would go
+# through Fireplace.Interact, which Kynda patches to add more than one log a press. The same two
+# lines check the ripped start fuels. If one of them fails, a game update changed it, and every
+# window in this file has to be worked out again.
+#
+# WHAT IT DOES NOT CHECK, so a pass is not read as more than it is:
+#
+#   - The world-load log line, "Light fuels last 2x as long. Resin: ...". Vaka writes it once
+#     when you enter a world, and again only if one of the rule's settings changes. `logged`
+#     reads only what was written after the run began, and nothing a scenario can do enters a
+#     world or changes a setting. So `logged ... yes` would fail on every build and
+#     `logged ... no` would pass on every build, and neither is in this file. Look in
+#     LogOutput.log by hand: piece_groundtorch should be named under Resin.
+#   - The torch's own rate, which nothing here can read. If a game update doubled
+#     piece_groundtorch to 40000s in the same build that broke the rule, the torch would read
+#     1.990 and pass. With Verbose on, Vaka's list of every fireplace prints the rate, as
+#     "20000s a fuel, burns as 40000s".
+#   - Coal. Which fire burns it has never been checked, so there is nothing to place.
+#   - An absence, and the cap. Both fires stay loaded the whole run.
+#   - Multiplayer, and Core handing a host's values to a client.
+
+wipe 8
+wait 1
+
+# Four metres apart and 3.6m from you. Anything solid within about a metre above a fire stops it
+# burning, and then it reads the 1.000 or 2.000 in the table above.
+place fire_pit 3 -2
+place piece_groundtorch 3 2
+
+# The ripped start fuels, before anything has burned. Each line holds until that fire's first
+# bill has run, which is what puts the jump below on a live tick.
+fuel fire_pit 0.99 1 6
+fuel piece_groundtorch 1.99 2 6
+
+clock 400
+
+# The ruler first. 0.960 is the rule reaching wood, 1.000 a fire that is out.
+fuel fire_pit 0.904 0.928 6
+
+# The rule. 1.980 is vanilla, 1.995 the rule applied twice, 2.000 a torch that is out.
+fuel piece_groundtorch 1.988 1.991 6

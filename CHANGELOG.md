@@ -3,6 +3,44 @@
 Notable changes to Vaka. Format follows [Keep a Changelog](https://keepachangelog.com),
 and the mod uses [semantic versioning](https://semver.org).
 
+## [1.1.0] - 2026-09-30
+
+Fires that burn resin or coal last twice as long.
+
+### Added
+
+- `LightFuels` and `LightFuelMultiplier`. A fire whose fuel item is on the list burns each unit
+  that many times as long, whether you are at it or not. The defaults are `Resin, Coal` and
+  `2`, so a wall torch holds a resin for 11h 7m of world time instead of 5h 33m. Cooking fires
+  burn wood and are left alone.
+- A log line each time you enter a world, naming the fires the light rule applies to, grouped
+  by fuel. A fuel on the list that no fire burns is named too. With `Verbose` on there is also
+  a list of every fireplace in the game with its fuel and burn rate. Every player gets the
+  line, whoever is standing at the fires. A dedicated server does not write it.
+
+### Changed
+
+- `Enabled` switches off both rules now, not only the absence cap.
+
+The rule reads each fire's fuel item rather than a list of pieces, so a modded torch that burns
+resin is covered as well. In the game as it stands, the log line puts the wall torch, the
+ground torch and the wood ground torch on resin, along with `Candle_resin`,
+`piece_snowlantern`, `piece_jackoturnip` and `CastleKit_groundtorch_unlit`. The standing and
+hanging braziers are on coal. The blue and green torches burn neither and keep their vanilla
+rate. The 1.0 README said the wood
+ground torch burns wood. It does not.
+
+A cooking station or cauldron counts any fire with a burning area under it, not only a
+campfire. Both braziers carry one, so cooking over a brazier would run on the longer fuse.
+Nobody has tried it. The log line names every fire where that could happen.
+
+It stacks with the cap in fuel. An absence still costs a torch at most one resin. The torch
+just has to be left twice as long before the bill gets there.
+
+Both settings are new, so an existing config picks up the defaults without editing. With
+Longhouse Core the host's values apply to everyone, like the cap's. A player without Vaka who
+owns a torch burns it at the vanilla rate for as long as they own it.
+
 ## [1.0.1] - 2026-09-12
 
 ### Changed

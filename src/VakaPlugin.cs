@@ -26,8 +26,18 @@ namespace Vaka
     ///
     /// It is deliberately not an auto-feeder and not an infinite fire. One unit off the top is
     /// a real price, a fire left nearly empty still goes out, and every second you spend in
-    /// front of one is charged exactly what vanilla charges. Bank your fires before you log
-    /// off and they will be lit when you get back; leave them guttering and they will not.
+    /// front of a cooking fire is charged exactly what vanilla charges. Bank your fires before
+    /// you log off and they will be lit when you get back; leave them guttering and they will
+    /// not.
+    ///
+    /// The second rule, added on 2026-09-26 at Robbin's request, is the longer fuse argued
+    /// against above - kept to lights, where that argument has nothing to bite on. A fire whose
+    /// fuel item is on LightFuels (resin and coal by default) burns each unit
+    /// LightFuelMultiplier times as long, present or absent. The case against a longer fuse was
+    /// that it makes cooking cheaper while you stand at the fire; cooking fires burn wood, and
+    /// nobody cooks over a torch. A standing brazier is less certain, and VakaPatches says why.
+    /// It rides the same postfix as the cap - see VakaPatches for why that is the right seam
+    /// rather than rewriting each fire's m_secPerFuel.
     ///
     /// Client-side is the wrong word for it, and the reason is worth writing down. Every
     /// decision here is made off state the machine already has, with nothing new on the wire -
@@ -60,7 +70,7 @@ namespace Vaka
     {
         public const string PluginGuid = "ezomic.valheim.vaka";
         public const string PluginName = "Vaka";
-        public const string PluginVersion = "1.0.1";
+        public const string PluginVersion = "1.1.0";
         public const string PluginAuthor = "Robbin Thijssen";
 
         /// <summary>Core's plugin GUID. Optional - see TryRegisterWithCore.</summary>
@@ -100,6 +110,19 @@ namespace Vaka
             // The startup line every mod in the suite writes. It is how a log answers "which
             // build of what is actually loaded" without anyone guessing.
             Log.LogInfo(PluginName + " " + PluginVersion + " by " + PluginAuthor + " - ready.");
+        }
+
+        /// <summary>
+        /// The light rule's log line, polled rather than hooked. There is no single moment
+        /// that means "a world is loaded, other mods' fires are registered and the host's
+        /// settings have arrived", so FireSurvey watches for the local player and for the
+        /// rule's settings changing, and does nothing on every other frame. It used to ride the
+        /// fuel postfix, which only runs on the machine that owns a fire - see FireSurvey for
+        /// the player who never got the line because of that.
+        /// </summary>
+        private void Update()
+        {
+            FireSurvey.Tick();
         }
 
         /// <summary>
@@ -149,7 +172,14 @@ namespace Vaka
             // kill switch, and saying out loud that the host owns both is the point of putting
             // Vaka on a server at all. A guest running a cap of 50 would be playing with
             // fires that never go out on somebody else's world.
-            Suite.Sync(VakaConfig.Enabled, VakaConfig.MaxFuelPerAbsence);
+            //
+            // The light rule's two entries are balance in exactly the same sense, and for the
+            // same ownership reason the cap is: a torch burns at whatever rate its current
+            // owner's plugin says, and ownership moves every two seconds. A guest with a
+            // multiplier of 10 would keep everyone's torches lit while standing near them, and
+            // the torches would go back to burning at the host's rate the moment they left.
+            Suite.Sync(VakaConfig.Enabled, VakaConfig.MaxFuelPerAbsence,
+                       VakaConfig.LightFuels, VakaConfig.LightFuelMultiplier);
 
             // Opting the diagnostic back out. A host reaching across to switch on someone's
             // logging for the evening is not a thing anybody asked for, and a log line cannot

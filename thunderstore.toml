@@ -7,7 +7,7 @@ schemaVersion = "0.0.1"
 [package]
 namespace = "Ezomic"
 name = "Vaka"
-versionNumber = "1.0.1"
+versionNumber = "1.1.0"
 description = "Fires keep while you are away. A single absence costs one fuel, however long it was."
 websiteUrl = "https://github.com/Ezomic/valheim-vaka"
 containsNsfwContent = false

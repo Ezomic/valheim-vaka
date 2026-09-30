@@ -28,6 +28,27 @@ namespace Vaka
     /// So the fix is not a longer-burning fire. It is refusing to charge for the part of the
     /// gap nobody was present for, which is a cap on a single bill and nothing else.
     ///
+    /// The second rule IS a longer-burning fire, asked for by name on 2026-09-26: resin and
+    /// coal last twice as long. It lives in the same postfix and changes the same number, by
+    /// dividing every bill for a fire whose fuel is on the list. That is the whole of it -
+    /// UpdateFireplace divides whatever this returns by m_secPerFuel, so half the seconds is
+    /// half the fuel, on the live tick and on the catch-up alike. The argument above against a
+    /// longer fuse was that it makes cooking cheaper while you stand at the fire, and it still
+    /// holds, which is why this rule reads the fuel: cooking fires burn wood and never reach
+    /// it, and nobody builds a spit over a torch.
+    ///
+    /// "Cooking fire" is not a kind of Fireplace, though, and that leaves one hole this rule
+    /// knowingly keeps open. A cooking station and a cauldron decide they have a fire by
+    /// asking <c>EffectArea.IsPointInsideArea(..., Type.Burning, ...)</c> at their check
+    /// points (<c>CookingStation.IsFireLit</c>, <c>CraftingStation.CheckFire</c>), never by
+    /// looking for a Fireplace, so anything carrying a Burning area heats them. The standing
+    /// brazier's rip has a <c>FireBurn</c> EffectArea under <c>_enabled_high</c>, the same
+    /// name and place as the campfire's own; the ground torch has a <c>FireArea</c>. A rip does
+    /// not print a child's area type, so which of those are Burning is unknown offline.
+    /// Excluding them on suspicion would put the one light that may burn coal back at vanilla
+    /// speed to guard against a spit nobody has built, so instead FireSurvey names every
+    /// stretched fire carrying a Burning area, and the running game answers it.
+    ///
     /// One drain this deliberately does not cover. <c>Fire.Dot</c>, the spreading-fire
     /// component, calls <c>Fireplace.AddFuel(-m_fuelBurnAmount)</c> on its own one second
     /// invoke and reaches the ZDO through RPC_AddFuelAmount, so nothing here sees it. It needs
@@ -40,6 +61,15 @@ namespace Vaka
     {
         /// <summary>The private method this mod exists to adjust.</summary>
         private const string Target = "GetTimeSinceLastUpdate";
+
+        /// <summary>
+        /// Whether the patch actually went on. FireSurvey reads it, because the survey no
+        /// longer runs from inside the patch: when it did, a failed patch meant no survey, which
+        /// was right by accident. Now that it runs from the plugin's Update it has to be told,
+        /// or a game update that renamed the target would leave an error at load followed by a
+        /// cheerful "Light fuels last 2x as long" once a world opened.
+        /// </summary>
+        internal static bool Applied;
 
         /// <summary>
         /// Patched on its own, behind a check and a catch, because the target is a private
@@ -70,18 +100,20 @@ namespace Vaka
                 {
                     VakaPlugin.Log.LogError(
                         "Vaka is doing nothing: Fireplace." + Target + " is not in this build "
-                        + "of the game, so there is nothing to cap and fires burn the vanilla "
-                        + "way. That method is private and matched by name, so a game update is "
-                        + "the likely reason.");
+                        + "of the game, so neither the absence cap nor the light fuel rule can "
+                        + "run and fires burn the vanilla way. That method is private and "
+                        + "matched by name, so a game update is the likely reason.");
                     return;
                 }
 
                 harmony.PatchAll(typeof(VakaPatches));
+                Applied = true;
             }
             catch (System.Exception e)
             {
                 // Error rather than warning, and it says the mod is inert rather than naming a
-                // feature. There is only the one patch, so a failure here is the whole mod, and
+                // feature. There is only the one patch and both rules live in it, so a failure
+                // here is the whole mod, and
                 // the next line in the log is the ordinary "- ready." that every mod in the
                 // suite writes - which means "loaded", not "working".
                 VakaPlugin.Log.LogError(
@@ -115,6 +147,43 @@ namespace Vaka
             new ConditionalWeakTable<Fireplace, object>();
 
         /// <summary>
+        /// Each fireplace's fuel, by prefab name, read once per instance.
+        ///
+        /// Cached because the light rule made the live tick do work for the first time. Before
+        /// it, every call after the first left at the _billed check; now every call needs the
+        /// fuel, and <c>m_fuelItem.gameObject.name</c> is two trips into native code and a new
+        /// string each time, every two seconds, for every fire this machine owns. The fuel a
+        /// fireplace burns is a serialised reference on its prefab and nothing in the game
+        /// reassigns it, so reading it once per instance loses nothing. Weak for the same
+        /// reason _billed is.
+        /// </summary>
+        private static readonly ConditionalWeakTable<Fireplace, string> _fuel =
+            new ConditionalWeakTable<Fireplace, string>();
+
+        /// <summary>
+        /// Held in a field so the lookup does not allocate a fresh delegate on every call,
+        /// which a method group passed inline can do on this compiler.
+        /// </summary>
+        private static readonly ConditionalWeakTable<Fireplace, string>.CreateValueCallback
+            ReadFuel = FuelOf;
+
+        /// <summary>
+        /// The prefab name of the item a fireplace burns, or "" when it has none.
+        ///
+        /// Plain == on the ItemDrop, never ?. - Unity's overloaded == is what treats a destroyed
+        /// reference as null, and the null-propagating operators walk straight past it.
+        /// Shared with the survey so the log names a fuel exactly the way the rule matches it: a
+        /// name in the log that differed from the one the rule checks would send someone to copy
+        /// the wrong one into LightFuels.
+        /// </summary>
+        internal static string FuelOf(Fireplace fire)
+        {
+            if (fire == null || fire.m_fuelItem == null) return "";
+
+            return Utils.GetPrefabName(fire.m_fuelItem.gameObject.name);
+        }
+
+        /// <summary>
         /// Vanilla's own update interval, from the <c>InvokeRepeating("UpdateFireplace", 0f,
         /// 2f)</c> in <c>Fireplace.Awake</c>.
         /// </summary>
@@ -145,7 +214,23 @@ namespace Vaka
         ///
         /// The clamp can only ever reduce, and every call advances the stamp, so successive
         /// bills partition real elapsed time rather than repeating it. Ownership moving between
-        /// clients cannot make a fire burn faster than vanilla.
+        /// clients cannot make a fire burn faster than vanilla. The light rule keeps that true:
+        /// it divides by a factor LightFactor never lets fall below 1.
+        ///
+        /// Why the light rule divides the bill here rather than doubling the fireplace's own
+        /// m_secPerFuel in an Awake postfix, which is the shape that suggests itself first.
+        /// Nothing is stored, so there is nothing to apply twice and nothing to undo. A field
+        /// written at Awake has to be written exactly once per instance, from a base value
+        /// remembered somewhere, and re-written on every live fire the moment Core hands over a
+        /// host's settings or somebody edits the cfg - and it would have to walk the scene to
+        /// find them, because Fireplace keeps no list of itself. Here a changed multiplier is
+        /// in force on the next two-second tick of every fire, because the next tick reads it.
+        /// It also keeps the mod at one patch on one method, which is the whole of its surface.
+        ///
+        /// What that gives up: m_secPerFuel on a live fire still reads the vanilla rate, so a
+        /// mod that computed "time left" from it would show the vanilla figure for a torch. No
+        /// mod in this workspace reads that field, and the game reads it only in
+        /// UpdateFireplace, for its guard and for the division this bill feeds.
         /// </summary>
         [HarmonyPostfix]
         [HarmonyPatch(typeof(Fireplace), "GetTimeSinceLastUpdate")]
@@ -155,24 +240,43 @@ namespace Vaka
             // null-propagating operators would walk straight past that. Plain == only.
             if (__instance == null) return;
 
-            // Seen before means the component has been running, so this is a live tick and is
-            // never touched however large it is. This is also where all but one call per
+            double charged = __result;
+
+            // The light rule first, and on every call. A torch burning resin is billed half the
+            // seconds whether you are standing at it or coming back to it, which is the request
+            // as Robbin put it: the fuel lasts twice as long, not only the absence.
+            double factor = VakaConfig.LightFactor(_fuel.GetValue(__instance, ReadFuel));
+            double burned = factor > 1.0 ? charged / factor : charged;
+
+            // Seen before means the component has been running, so this is a live tick and the
+            // cap never touches it however large it is. This is where all but one call per
             // fireplace per zone load leaves, which matters: the postfix runs every two seconds
             // for every fire this machine owns.
             object marker;
-            if (_billed.TryGetValue(__instance, out marker)) return;
+            if (_billed.TryGetValue(__instance, out marker))
+            {
+                __result = burned;
+                return;
+            }
 
             _billed.Add(__instance, null);
 
-            double charged = __result;
+            // Capped after the light rule, not before, and the order is what keeps the cap in
+            // fuel. UpdateFireplace divides the result by the vanilla m_secPerFuel, so a cap of
+            // m_secPerFuel seconds on the divided bill is one unit of fuel whatever the factor
+            // is. The other order would cap first and divide after, and a torch would lose half
+            // a resin to an absence where the cfg says one.
             double cap = VakaConfig.CapSeconds(__instance.m_secPerFuel);
 
             // cap is negative when the mod is off, and NaN fails every comparison it is in, so
             // a config file hand-edited to NaN or a nonsense rate leaves vanilla alone rather
             // than writing a NaN into the fuel the world saves.
-            if (cap >= 0.0 && charged > cap) __result = cap;
+            double billed = burned;
+            if (cap >= 0.0 && billed > cap) billed = cap;
 
-            if (VakaConfig.Verbose.Value) Report(__instance, charged, __result);
+            __result = billed;
+
+            if (VakaConfig.Verbose.Value) Report(__instance, charged, factor, burned, billed);
         }
 
         /// <summary>
@@ -194,8 +298,19 @@ namespace Vaka
         /// Reporting those would claim a saving that never existed, which is the same class of
         /// lie the Verbose flag exists to prevent. IsBurning covers blocked, switched off,
         /// underwater and out of fuel in one call, so the pair below is exactly vanilla's gate.
+        ///
+        /// The light rule changes what an absence is worth, so the "worth" figure is at the
+        /// fire's stretched rate and says so. Printing the vanilla figure beside a charge made
+        /// at half of it would read as the cap having fired when it had not, which is the exact
+        /// confusion this line exists to settle. The charged span is converted back to world
+        /// time at the same rate, so on a wood fire every number is what 1.0 printed.
         /// </summary>
-        private static void Report(Fireplace fire, double charged, double billed)
+        /// <param name="charged">What vanilla asked for, in seconds of world time.</param>
+        /// <param name="factor">The light rule's factor for this fire, 1 when it does not apply.</param>
+        /// <param name="burned">The bill after the light rule, before the cap.</param>
+        /// <param name="billed">What was actually charged, in vanilla-rate seconds.</param>
+        private static void Report(Fireplace fire, double charged, double factor,
+                                   double burned, double billed)
         {
             if (charged < WorthReporting) return;
             if (!fire.IsBurning() || fire.m_infiniteFuel) return;
@@ -205,18 +320,23 @@ namespace Vaka
             string what = Utils.GetPrefabName(fire.gameObject.name);
             float rate = fire.m_secPerFuel;
 
-            if (billed >= charged)
+            string light = factor > 1.0
+                ? " (" + FuelOf(fire) + " lasts " + factor.ToString("0.##") + "x as long)"
+                : "";
+
+            if (billed >= burned)
             {
                 VakaPlugin.Log.LogInfo(
                     what + " was away " + Span(charged) + " of world time, worth "
-                    + Fuel(charged, rate) + " fuel. Under the cap, so it was charged in full.");
+                    + Fuel(burned, rate) + " fuel" + light
+                    + ". Under the cap, so it was charged in full.");
                 return;
             }
 
             VakaPlugin.Log.LogInfo(
                 what + " was away " + Span(charged) + " of world time, worth "
-                + Fuel(charged, rate) + " fuel. Charged " + Span(billed) + ", "
-                + Fuel(billed, rate) + " fuel.");
+                + Fuel(burned, rate) + " fuel" + light + ". Charged " + Span(billed * factor)
+                + ", " + Fuel(billed, rate) + " fuel.");
         }
 
         /// <summary>A span of seconds, in whichever unit reads without arithmetic.</summary>
