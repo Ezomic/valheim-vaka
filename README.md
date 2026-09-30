@@ -87,10 +87,9 @@ rates:
 | Blue and green ground torches | `piece_groundtorch_blue`, `_green` | 6 | 5h 33m | 33.3h |
 | Wall torch | `piece_walltorch` | 6 | 5h 33m | 33.3h |
 
-Every column is populated world time, not wall clock. Cooking fires and the wood ground torch
-burn wood, and the ground torch and wall torch burn resin. What the standing brazier and the
-blue and green torches burn was not recorded when these numbers were taken, so that is left to
-the log line.
+Every column is populated world time, not wall clock. Cooking fires burn wood. The wood ground
+torch, the ground torch and the wall torch burn resin, and the standing brazier burns coal, so
+the light rule reaches all four at its default. The blue and green torches burn neither.
 
 With the light rule at its default, a fire it reaches doubles both of its last two columns. A
 wall torch holds a resin for 11h 7m and a full one lasts about 67 hours. A fire burning
